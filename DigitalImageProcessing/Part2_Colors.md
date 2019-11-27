@@ -76,7 +76,8 @@
 
 - **H**ue：色相，决定什么颜色，对应 **红 (0°) 绿(120°) 蓝(240°)** 首尾相接的色相环值，取值范围 [0, 360)
 - **S**aturation：饱和度，决定颜色浓淡，一种颜色混合白光的比例（100% 是无白光混合），物体反射的颜色，**饱和度高了色彩会鲜亮**
-- **V**alue/**L**ightness：明度，光源的明暗，人们所感知到的色彩明暗度
+- **V**alue：饱和度值
+- **L**ightness：明度，光源的明暗，人们所感知到的色彩明暗度
 - Brightness/Luminance/Intensity：亮度，光的振幅，物体表面的反光率，表面色彩白色的多少
 - Chroma：色度 = 色相(方向) + 饱和度(大小)，一种颜色混合白光的比例（100% 是无白光混合）
 
@@ -621,9 +622,10 @@ $RGB \in [0,1]、Y \in [0,1]、U \in [-0.436,0.436]、V \in [-0.615,0.615]$，[m
 
 1. [Lumiance 计算性能优化](http://www.songho.ca/dsp/luminance/luminance.html)
 2. [Luminance 和 Luma 的区别](https://cs.stackexchange.com/questions/92569/what-is-the-difference-between-luma-and-luminance)
-3. [YUV 维基百科](https://en.wikipedia.org/wiki/YUV)
-4. [YUV 的采样方式](https://en.wikipedia.org/wiki/Chroma_subsampling)
-5. [YUV 的打包方式](https://msdn.microsoft.com/en-us/library/aa904813%28VS.80%29.aspx)
-6. [YUV 420 数据格式详解](http://www.cnblogs.com/azraelly/archive/2013/01/01/2841269.html)
-7. [IJKPlayer](https://github.com/bilibili/ijkplayer)
+3. [Fast branchless RGB to HSV conversion in GLSL](http://lolengine.net/blog/2013/07/27/rgb-to-hsv-in-glsl)
+4. [YUV 维基百科](https://en.wikipedia.org/wiki/YUV)
+5. [YUV 的采样方式](https://en.wikipedia.org/wiki/Chroma_subsampling)
+6. [YUV 的打包方式](https://msdn.microsoft.com/en-us/library/aa904813%28VS.80%29.aspx)
+7. [YUV 420 数据格式详解](http://www.cnblogs.com/azraelly/archive/2013/01/01/2841269.html)
+8. [IJKPlayer](https://github.com/bilibili/ijkplayer)
 

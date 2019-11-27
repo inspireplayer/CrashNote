@@ -21,7 +21,31 @@
 
 
 
-## 2. OpenGL 的环境配置流程
+##2. OpenGL Context
+
+OpenGL 命令执行的结果影响 OpenGL 状态（由 OpenGL context 保存，包括OpenGL 数据缓存）或 影响帧缓存
+
+1. 使用 OpenGL 之前必须先创建 OpenGL Context，并 make current 将创建的 上下文作为当前线程的上下文
+
+2. **OpenGL 标准并不定义如何创建 OpenGL Context，这个任务由其他标准定义**
+   如GLX（linux）、WGL（windows）、EGL（一般在移动设备上用）
+
+3. 上下文的描述类型有 **core profile (不包含任何弃用功能)** 或 **compatibility profile (包含任何弃用功能)** 两种
+   如果创建的是 core profile OpenGL context，调用如 glBegin() 等兼容 API 将产生GL_INVALID_OPERATION 错误（用 glGetError() 查询）
+
+4. 共享上下文
+
+   一个窗口的 Context 可以有多个，在某个线程创建后，所有 OpenGL 的操作都会转到这个线程来操作
+   两个线程同时 make current 到同一个绘制上下文，会导致程序崩溃
+
+   一般每个窗口都有一个上下文，可以保证上下文间的不互相影响
+   通过**创建上下文时传入要共享的上下文**，多个窗口的上下文之间图形资源可以共享
+   可以共享的：纹理、shader、Vertex Buffer 等，外部传入对象
+   不可共享的：Frame Buffer Object、Vertex Array Object 等 OpenGL 内置容器**对象**
+
+   
+
+## 3. OpenGL 的环境配置流程
 
 **1. 动态获取 OpenGL 函数地址**
 
@@ -34,14 +58,14 @@ OpenGL 只是一个标准/规范，具体的实现是由驱动开发商针对特
 
 **2. 创建上下文**
 
-OpenGL 创建上下文的操作在不同的操作系统上是不同的，所以需要开发者自己处理：**窗口的创建、定义上下文、处理用户输入**
+OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的，所以需要开发者自己处理：**窗口的创建、定义上下文、处理用户输入**
 
-相关库可以提供一个窗口和上下文用来渲染：[GLUT](http://freeglut.sourceforge.net/)、SDL、SFML、[GLFW](http://www.glfw.org/download.html)
-
-
+相关库可以摆脱平台的限制，提供一个较为统一的接口和窗口、上下文用来渲染：[GLUT](http://freeglut.sourceforge.net/)、SDL、SFML、[GLFW](http://www.glfw.org/download.html)
 
 
-## 3. OpenGL 的执行模型（Client - Server 模型）
+
+
+## 4. OpenGL 的执行模型（Client - Server 模型）
 
 > 主函数在 CPU 上执行，图形渲染在 GPU 上执行
 > 虽然 GPU 可以编程，但这样的程序也需要在 CPU 上执行来操作 GPU
@@ -69,7 +93,7 @@ OpenGL 创建上下文的操作在不同的操作系统上是不同的，所以�
 
 
 
-## 4. Shader 接口一致性
+## 5. Shader 接口一致性
 
 - Vertex Shader 的 输入 和 应用程序的顶点属性数据接口 一致
 - Vertex Shader 的 输出 和 Fragment Shader 对应的 输入 一致
@@ -83,7 +107,7 @@ OpenGL 创建上下文的操作在不同的操作系统上是不同的，所以�
 
 
 
-# 二、OpenGL 的版本演变
+# 三、OpenGL 的版本演变
 
 ## 1. OpenGL 1.X
 
@@ -484,31 +508,6 @@ OpenGL ES 和 OpenGL ES 的 Shading Language 版本对应
 3. [其他版本重要功能变化](https://github.com/mattdesl/lwjgl-basics/wiki/glsl-versions)
 
 
-
-
-# 三、OpenGL Context
-
-OpenGL 命令执行的结果影响 OpenGL 状态（由 OpenGL context 保存，包括OpenGL 数据缓存）或 影响帧缓存
-
-1. 使用 OpenGL 之前必须先创建 OpenGL Context，并 make current 将创建的 上下文作为当前线程的上下文
-
-2. **OpenGL 标准并不定义如何创建 OpenGL Context，这个任务由其他标准定义**
-   如GLX（linux）、WGL（windows）、EGL（一般在移动设备上用）
-
-3. 上下文的描述类型有 **core profile (不包含任何弃用功能)** 或 **compatibility profile (包含任何弃用功能)** 两种
-   如果创建的是 core profile OpenGL context，调用如 glBegin() 等兼容 API 将产生GL_INVALID_OPERATION 错误（用 glGetError() 查询）
-
-5. 共享上下文
-
-   Context 可以有多个，在某个线程创建后，所有 OpenGL 的操作都会转到这个线程来操作
-   两个线程同时 make current 到同一个绘制上下文，会导致程序崩溃
-
-   一般每个窗口都有一个上下文，可以保证上下文间的不互相影响
-   通过**创建上下文时传入要共享的上下文**，多个窗口的上下文之间图形资源可以共享
-   可以共享的：纹理、shader、Vertex Buffer 等，外部传入对象
-   不可共享的：Frame Buffer Object、Vertex Array Object 等 OpenGL 内置容器**对象**
-   
-   
 
 
 # 四、渲染管线

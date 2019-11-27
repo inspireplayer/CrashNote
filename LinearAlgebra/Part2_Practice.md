@@ -106,7 +106,7 @@ $$
 
 - 在笛卡尔坐标系中，对于以下方程
   如果 C $\neq$ D，方程无解
-  如果 C $=​$ D，方程表示的两条线是同一条线
+  如果 C $=$ D，方程表示的两条线是同一条线
   $$
   \begin{cases}
   Ax+By+C=0\\
@@ -116,7 +116,7 @@ $$
 
 - 在投影空间中，对于以下方程
   如果 C $\neq$ D，由 (C - D)w = 0 得 w = 0，**即当 w = 0 时并非无意义，而是表示一个无穷远**，所以两条平行线相交于'点' (x, y, 0)
-  如果 C $=​$ D，方程表示的两条线是同一条线
+  如果 C $=$ D，方程表示的两条线是同一条线
   $$
   \begin{cases}
   A{x\over w}+B{y\over w}+C=0\\
@@ -762,7 +762,7 @@ $$
 由 4.2.1 复数在笛卡尔坐标和极坐标的转换方式可得，四元数在
 
 - 笛卡尔坐标下为
-  $\vec Q = (x, y, z, w) = (\vec u, w)​$
+  $\vec Q = (x, y, z, w) = (\vec u, w)$
 - 极坐标下为，其中 $\theta$ 为绕 $\vec u$ 旋转后的角位移（旋转方式见 4.2.3，[推导到极坐标](https://krasjet.github.io/quaternion/quaternion.pdf)）
   $\vec Q  = (x sin{\theta \over 2}, y sin{\theta \over 2},z sin{\theta \over 2}, cos{\theta \over 2}) = (\vec u sin{\theta \over 2}, cos{\theta \over 2})$
 

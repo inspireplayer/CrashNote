@@ -519,17 +519,9 @@ bool convolve2D(int* in, int* out, int dataSizeX, int dataSizeY,
 # 引用
 
 1. [正弦信号，指数信号](https://www.cnblogs.com/zhiyinglky/p/5805315.html)
-
 2. [跃阶信号](https://www.cnblogs.com/zhiyinglky/p/5805314.html)
-
 3. [单位脉冲响应、单位阶跃响应的作用是什么？](https://know.baidu.com/question/b83161b20e2bf9de79624dd98fa89b47c70e1cf)
-
 4. [Fundamentals of Digital Image and Video Processing](https://github.com/giosans/Fundamentals-of-Digital-Image-and-Video-Processing-course)
-
 5. [Signals and Systems](http://open.163.com/movie/2011/8/7/A/M8AROL7GG_M8AROT67A.html)
-
 6. [Convolution](http://www.songho.ca/dsp/convolution/convolution.html)
-
 7. [Proof of Separable Convolution 2D](http://www.songho.ca/dsp/convolution/convolution2d_separable.html)
-
-   
