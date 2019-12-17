@@ -374,13 +374,116 @@ int main(int argc, char ** argv)
 
 ## 1. 数据封装
 
+### 1.1 内存与纹理建立映射关系
+
+**CVOpenGLESTextureCacheCreateTextureFromImage**
+
+- 从 **CVOpenGLESTextureCacheRef** 纹理缓存中获取一个新的纹理，或者符合传入参数的已创建的纹理
+- 将一段内存与 **CVOpenGLESTextureCacheRef** 中的一个纹理建立映射关系
+
+```objc
++ (CVReturn)createTextureFromPixelBuffer:(CVImageBufferRef __nonnull)pixelBuffer
+                                   width:(int)width
+                                  height:(int)height
+                                   cache:(CVOpenGLESTextureCacheRef __nonnull)textureCache
+                               cvTexture:(CVOpenGLESTextureRef* __nonnull)cvTexture
+                            textureOuput:(unsigned int* __nullable)textureOuput
+{
+  CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
+  CVReturn result = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
+                                                                 textureCache,
+                                                                 pixelBuffer,
+                                                                 NULL,
+                                                                 GL_TEXTURE_2D,
+                                                                 GL_RGBA,
+                                                                 width,
+                                                                 height,
+                                                                 GL_BGRA,
+                                                                 GL_UNSIGNED_BYTE,
+                                                                 0,
+                                                                 cvTexture);
+  CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
+  
+  if (NULL == textureOuput) {
+    glBindTexture(CVOpenGLESTextureGetTarget(*cvTexture), CVOpenGLESTextureGetName(*cvTexture));
+  } else  {
+    *textureOuput = CVOpenGLESTextureGetName(*cvTexture);
+    glBindTexture(CVOpenGLESTextureGetTarget(*cvTexture), *textureOuput);
+  }
+  
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  
+  return result;
+}
+```
+
+
+
 ## 2. 数据的展示和刷新
+
+### 2.1 CAEAGLLayer
+
+CAEAGLLayer  是 UIView 的 OpenGL 展示层，可以通过重写 UIView 的以下方法来创建 CAEAGLLayer 对象
+
+```objective-c
++ (Class)layerClass
+{
+  return [CAEAGLLayer class];
+}
+```
+
+
+
+CAEGALLayer 的配置
+
+```objc
+CAEAGLLayer *layer = (CAEAGLLayer *)self.layer;
+layer.opaque = YES;
+layer.drawableProperties = @{
+  kEAGLDrawablePropertyRetainedBacking: [NSNumber numberWithBool:false],
+  kEAGLDrawablePropertyColorFormat: kEAGLColorFormatRGBA8
+};
+```
+
+
 
 ## 3. EGL 环境配置
 
+### 3.1 EGL 的 Context 
+
+[Configuring OpenGL ES Contexts](https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/WorkingwithOpenGLESContexts/WorkingwithOpenGLESContexts.html#//apple_ref/doc/uid/TP40008793-CH2-SW1)
+
+```objc
+// 1. 创建上下文
+EAGLContext *firstContext = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
+
+// 2. 使用共享上下文
+EAGLContext* secondContext = [[EAGLContext alloc] initWithAPI:[firstContext API] 
+                                                   sharegroup:[firstContext sharegroup]];
+
+// 3. 设置上下文为当前上下文
+if ([EAGLContext currentContext] != firstContext) {
+  [EAGLContext setCurrentContext:firstContext];
+}
+```
+
+
+
 ## 4. 平台问题
 
+### 4.1 证书问题
+
+1. [苹果开发者账号申请流程完整版](https://www.jianshu.com/p/655380201685)
+
+
+
 ## 5. Debug
+
+1. [使用Xcode GPU Frame Caputre教程](https://www.cnblogs.com/TracePlus/p/4093830.html)
 
 
 
@@ -390,7 +493,7 @@ int main(int argc, char ** argv)
 
 ## 2. 数据的展示和刷新
 
-## 3. EGL 环境配置
+## 3. GL 环境配置
 
 ## 4. 平台问题
 
@@ -411,3 +514,5 @@ int main(int argc, char ** argv)
 - [OpenGL ES：EGL简介](https://blog.csdn.net/iEearth/article/details/71180457)
 - [Android中 的 GraphicBuffer 同步机制 Fence](https://blog.csdn.net/jinzhuojun/article/details/39698317)
 - [深入 Android 渲染机制](https://www.cnblogs.com/ldq2016/p/6668148.html)
+- [Apple OpenGL ES Programming Guide](https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/Introduction/Introduction.html?language=objc#//apple_ref/doc/uid/TP40008793)
+
