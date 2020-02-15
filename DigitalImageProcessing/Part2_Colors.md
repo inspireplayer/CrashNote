@@ -56,6 +56,10 @@
 
 ![](images/modelRGB.png)
 
+使用 RGB 色彩模型的应用：[3DLUT 的 unity 实现](https://zhuanlan.zhihu.com/p/43241990)
+
+
+
 ### 2.2 CMY 和 CMYK 色彩模型 	 
 
 特点：适合色彩生成，适合硬件设备对于色彩的实现
@@ -187,7 +191,7 @@ HSL、HSV、HSI缺点：
       hsl.y = luminance == 1.0 ? 0.0 : chroma / (1.0 - abs(2.0 * luminance - 1.0));
       
       // Hue 原来范围是 [0, 360), 这里默认输入的范围是 [0, 1]
-      /** 尽管这样并不能真的提高效率，但是这个规避 if else 的思想值得思考 
+      /** 尽管这样并不一定能真的提高效率，但是这个规避 if else 的思想值得思考 
           vec3 comp;
           comp.rg = vec2(equal(rgb.rg, vec2(maxRGB)));
           float invertR = 1.0 - comp.r;       // 0 or 1
