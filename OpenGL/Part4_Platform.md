@@ -491,13 +491,164 @@ if ([EAGLContext currentContext] != firstContext) {
 
 ## 1. 数据封装
 
+### 1.1 QSurface
+
+内存中的一段绘图缓冲区，对 framebuffer 的 Qt 封装对象
+有 OpengLSurface、OpenVGSurface（2D）、RasterSurface等多种类型
+
+
+
+### 1.2 QOffscreenSurface
+
+不需要在创建 QWindow 的情况下创建，本地窗口内存中的一段绘图缓冲区
+可以获取 QOffscreenSurface 中创建的 OpenGL 资源，但无法通过 read pixel 的形式获取像素数据
+
+
+
+### 1.3 QGLFunctions
+
+QGLFunctions 提供 OpenGL ES 2.0 头文件接口功能，内部成员函数都是 OpenGL 函数，如果要使用 Qt 提供的 OpenGL 函数需要：继承 QGLFunctions 
+
+如果想使用 OpenGL ES 2.0 意外的 API，需要继承 QOpenGLFunctions_3_3[_Core/Compatibility] 类
+
+
+
+### 1.2 QGLBuffer、QGLColormap、QGLPixelBuffer...
+
+Qt 将 OpenGL 许多用 C 风格的写成的对象封装为 Qt 内部的对象以方便与 Qt 其他的对象交互
+
+
+
+
+
 ## 2. 数据的展示和刷新
+
+### 2.1 QGLWidget
+
+QGLWidget 继承自QWidget，绑定当前窗口的显存，内置 OpenGL 上下文
+
+- void initializeGL()：初始化 OpenGL 上下文
+- void resizeGL(int w, int h)：设置 OpenGL view port
+- void paintGL()：绘制 OpenGL 场景
+
+
+
+
 
 ## 3. GL 环境配置
 
+### 3.1 链接库 QtOpenGL
+
+使用 Qt 内部封装的 OpenGL 函数前，需要在 qmake 的 .pro 里添加 QT += opengl 库
+
+
+
+### 3.2 配置 QOpenGLContext
+
+QOpenGLContext 代表本地窗口的 OpenGL 上下文，渲染在 QSurface 上
+
+```c++
+void GLWidget::initializeGL()
+{
+    QOpenGLContext* context = QOpenGLContext::currentContext();
+    QSurface* mainSurface = context->surface();
+
+  	// 创建离屏渲染的 surface
+    QOffscreenSurface* renderSurface = new QOffscreenSurface(nullptr, this);
+	  // 设置 QSurfaceFormat
+    renderSurface->setFormat(context->format()); 
+    renderSurface->create();
+
+  	// 设置当前 context 为 NULL
+    context->doneCurrent();
+  
+  	// 设置当前 context 为 GLWidget 一开始默认的当前上下文
+    context->makeCurrent(mainSurface);
+}
+```
+
+
+
+
+
 ## 4. 平台问题
 
+如果使用的是不通平台的 OpenGL 原生的库，需要根据所在平台的不同在 qmake 的 .pro 里添加不同的库文件
+
+```cmake
+win32-g++ {
+    LIBS += -lopengl32
+}
+win32-msvc*{
+    LIBS += opengl32.lib
+}
+
+unix {
+		
+}
+```
+
+
+
+
+
 ## 5. Debug
+
+查看 OpenGL 上下文信息
+
+```c++
+// ViewRender 继承自 QOpenGLWidget 和 QOpenGLFunctions
+void ViewRender::logCtxInfo()
+{
+    QOpenGLContext *ctx = QOpenGLContext::currentContext();
+    QOpenGLContext *defaultCtx = context();
+    GLint attributeNumber;
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &attributeNumber);
+    qDebug() << "Has default context: " <<  (defaultCtx != nullptr ? "Yes" : "No") << endl
+             << "Default context is current context: " << (defaultCtx == ctx ? "Yes" : "No")  << endl
+             << "Renderer: " << (const char*)glGetString(GL_RENDERER) << endl
+             << "Version:  " << (ctx->isOpenGLES() ? "OpenGL ES" : "OpenGL") << (const char*)glGetString(GL_VERSION) << endl
+             << "Shader Version:" << (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION) << endl
+             << "R:" << ctx->format().redBufferSize() << endl
+             << "G:" << ctx->format().greenBufferSize() << endl
+             << "B:" << ctx->format().blueBufferSize() << endl
+             << "A:" << ctx->format().alphaBufferSize() << endl
+             << "Depth:   " << ctx->format().depthBufferSize() << endl
+             << "Stencil: " << ctx->format().stencilBufferSize() << endl
+             << "Pixel Radio: " << devicePixelRatio() << endl
+             << "Support Attribute Number: " << attributeNumber << endl;
+}
+```
+
+
+
+查看 OpenGL 错误信息
+
+```c++
+#ifndef QT_NO_DEBUG
+#define glCheckError() glCheckError_(__FILE__, __LINE__, this)
+#else
+#define glCheckError()
+#endif
+
+GLenum glCheckError_(const char *file, int line, QAbstractOpenGLFunctions* obj) {
+    GLenum errorCode;
+    while ((errorCode = obj->glGetError()) != GL_NO_ERROR) {
+        std::string error;
+        switch (errorCode) {
+            case GL_INVALID_ENUM:                  error = "INVALID_ENUM"; break;
+            case GL_INVALID_VALUE:                 error = "INVALID_VALUE"; break;
+            case GL_INVALID_OPERATION:             error = "INVALID_OPERATION"; break;
+            case GL_STACK_OVERFLOW:                error = "STACK_OVERFLOW"; break;
+            case GL_STACK_UNDERFLOW:               error = "STACK_UNDERFLOW"; break;
+            case GL_OUT_OF_MEMORY:                 error = "OUT_OF_MEMORY"; break;
+            case GL_INVALID_FRAMEBUFFER_OPERATION: error = "INVALID_FRAMEBUFFER_OPERATION"; break;
+        }
+        std::cout << "Error:" << error << " File:" << file <<  " Line:" << line << std::endl;
+    }
+    return errorCode;
+}
+```
 
 
 
