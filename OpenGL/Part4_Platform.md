@@ -565,6 +565,26 @@ void GLWidget::initializeGL()
   	// 设置当前 context 为 GLWidget 一开始默认的当前上下文
     context->makeCurrent(mainSurface);
 }
+
+int main(int argc, char *argv[]) {
+    QSurfaceFormat format;
+    format.setMajorVersion(3);
+    format.setMinorVersion(3);
+    format.setProfile(QSurfaceFormat::CoreProfile);
+    format.setOption(QSurfaceFormat::DebugContext);
+  
+  	// 设置 Qt 的 QOpenGLContext, QWindow, QOpenGLWidget 中 QSurface 默认的格式
+  	// 这个默认的全局通用格式会被 Qt 内部的函数设置的格式覆盖
+    QSurfaceFormat::setDefaultFormat(format);
+  
+  	QApplication a(argc, argv);
+    a.setWindowIcon(QIcon(":/resources/Editor.ico"));
+ 
+    QMainWindow w;
+    w.show();
+  
+    return a.exec();
+}
 ```
 
 
