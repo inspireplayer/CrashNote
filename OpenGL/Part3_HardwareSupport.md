@@ -104,15 +104,18 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
 
 ### 3.1 基本优化
 
-1. 渲染更少的像素
+1. **渲染更少的像素**
    要注重渲染的像素的质量而非数量，1280 X 720 是针对中低端手机比较理想的分辨率
    后处理的场景可以用原图尺寸的一半或更低的分辨率 FBO 来渲染
    UI 界面可以用低分辨率的小部件拼接起来，渲染在高分辨率的 FBO 
 
-2. 减少 draw call 的次数
+2. **减少 draw call 的次数**
+   大量很小的 draw call 会造成 CPU 的性能瓶颈，即 CPU 把时间都花费在准备 draw call 上了
    使用共享的 shader 和共享的绘制状态（例：多个纹理文件合并为一个地图纹理集）
+   避免使用很小的网格
+   避免使用过多的纹理尽量在不同的网格间共用同一纹理
 
-3. 减少带宽的使用
+3. **减少带宽的使用**
    设置最大纹理限制
    在渲染少量像素时用更小的纹理（采用 mipmap）
    采用纹理压缩技术压缩纹理
@@ -124,19 +127,19 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
    | OpenGL ES 3.1 | ETC2 or ASTC     |
    | Vulkan        | ETC2 or ASTC     |
 
-4. 尽量将多个 VBO 一次更新完后再绘制
+4. **尽量将多个 VBO 一次更新完后再绘制**
 
-5. shader 代码性能的优化
+5. **shader 代码性能的优化**
    shader 16 bit 精度（mediump）比 32 bit 精度（highp）快很多，建议默认设为 mediump 精度
    减少对不必要的通道的使用，通过对通道的排序，减少对通道不必要的占用
 
-6. Tessellaion（曲面细分的优化）
+6. **Tessellaion（曲面细分的优化）**
 
    - 过高的曲面细分会产生亚像素的三角形，可以通过距离、屏幕空间等方法改变传递细分因子的值来避免
    - 对于要剔除的背面可以不进行曲面细分
    - 通常可以 disable 掉 TCS 和 TES 阶段的曲面细分，减少 GPU 不必要的阶段
 
-7. GLES 3.1 的 Compute shader
+7. **GLES 3.1 的 Compute shader**
    ![](images/compute.png)
 
 
@@ -144,9 +147,9 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
 ### 3.1 基于 Frame buffer object 的优化
 基于 TBDR 的**移动端** FBO 优化
 
-1. 尽量使用少的透明纹理
+1. **尽量使用少的透明纹理**
    TBDR 的优化 Hidden Surface Removal，会优化遮蔽的不透明纹理，透明纹理无法遮蔽，不会优化
-2. 每次重新绘制前执行 clear
+2. **每次重新绘制前执行 clear**
    IMR 立即渲染模式下，每一帧**不去**清屏可以提高效率（clear 操作需要将值写入 FramBuffer 中的每一个像素中）
    TBDR 贴图延迟渲染模式下清屏，表示丢弃上一帧的内容，如果上一帧的渲染命令还没有积攒完，这个时候可以立刻放弃上一帧数据
 
