@@ -1,546 +1,14 @@
 [TOC]
 
-#十一、实际应用
+#十一、3D 中的方位与角位移
 
-##1. 基础知识
-
-###1.1 GPU 中矩阵间的计算方式
-
-> 注意：
->
-> 1. 在矩阵乘法中，顺序很重要，变换的几何意义由 右 -> 左 变换
-> 2. 建议在组合矩阵时，先缩放，后旋转，最后位移
->    否则它们会（消极地）互相影响，比如：比如向某方向移动2米，2米也许会被缩放成1米
-
-- 阵列操作：图像的矩阵中每个对应元素之间的操作（矩阵间的 加、减，矩阵和数字的加、减、乘）
-  例，**矩阵**和数字相减
-  $$
-  \begin{bmatrix}
-  \color{red}{a_{11}} & \color{red}{a_{21}} \\
-  a_{12} & a_{22} \\
-  \end{bmatrix}
-  - 2
-  =
-  \begin{bmatrix}
-  \color{red}{a_{11}} - 2 & \color{red}{a_{21}} - 2 \\
-  a_{12} - 2 & a_{22} - 2 \\
-  \end{bmatrix}
-  $$
-
-- 符合线性代数的条件下使用线性代数公式
-  例，**矩阵**相乘：行 X 列
-  $$
-  \begin{bmatrix}
-  \color{red}{a_{11}} & \color{red}{a_{21}} \\
-  a_{12} & a_{22} \\
-  \end{bmatrix}
-  \begin{bmatrix}
-  \color{green}{b_{11}} & b_{21} \\
-  \color{green}{b_{12}} & b_{22} \\
-  \end{bmatrix}
-  =
-  \begin{bmatrix}
-  \color{red}{a_{11}}\color{green}{b_{11}}+\color{red}{a_{21}}\color{green}{b_{12}} &
-  \color{red}{a_{11}}b_{21}+\color{red}{a_{21}}b_{22} \\
-  a_{12}\color{green}{b_{11}}+a_{22}\color{green}{b_{12}} & a_{12}b_{21}+a_{22}b_{22} \\
-  \end{bmatrix}
-  $$
-  如果使用 **glsl** 的内置函数 `matrixcompmult`，矩阵之间也可以实现**阵列相乘**
-  $$
-  \begin{align}
-  M_1 &= \begin{bmatrix}
-  \color{red}{a_{11}} & \color{red}{a_{21}} \\
-  a_{12} & a_{22} \\
-  \end{bmatrix} \\
-  M_2 &= \begin{bmatrix}
-  \color{green}{b_{11}} & b_{21} \\
-  \color{green}{b_{12}} & b_{22} \\
-  \end{bmatrix}\\
-  matrixcompmult(M_1, M_2) &=
-  \begin{bmatrix}
-  \color{red}{a_{11}}\color{green}{b_{11}} & \color{red}{a_{21}}b_{21} \\
-  a_{12}\color{green}{b_{12}} & a_{22}b_{22} \\
-  \end{bmatrix}
-  \end{align}
-  $$
-
-
-
-### 1.2 矩阵变换组合
-
-OpenGL 默认为**列向量优先存储：矩阵由列向量构成**
-$$
-\begin{align}
-v_{世界} &= M_{模型 \to世界} \cdot v_{模型} \\
-v_{视点} &= V_{世界 \to 视点} \cdot v_{世界}\\
-v_{屏幕} &= P_{视点 \to 透视} \cdot v_{视点}\\
-&= P_{视点 \to 透视} \cdot V_{世界 \to 视点} \cdot M_{模型 \to 世界} \cdot v_{模型}
-\end{align}
-$$
-
-
-
-### 1.3 齐次空间
-
-齐次坐标：将一个原本是 n 维的向量用一个 n+1 维向量来表示
-
-齐次坐标的齐次性：多个齐次坐标表示的是一个点，例：下表中的齐次坐标都表示 (1/3, 2/3) 这一个点
-
-| 齐次坐标     | 非 齐次坐标                   |
-| ------------ | ----------------------------- |
-| (x, y, w)    | (x/w,  y/w)                   |
-| (1, 2, 3)    | (1/3,  2/3)                   |
-| (2, 4, 6)    | (2/6,  4/6) = (1/3,  2/3)     |
-| (1a, 2a, 3a) | (1a/3a,  2a/3a) = (1/3,  2/3) |
-
-几何意义：
-
-- 为了避免用 $\infty$ 这样无法量化的符号来表示无限远
-- 在非齐次坐标空间，两条平行线不会相交
-  在齐次坐标空间，两条平行线在无限远处相交于一点
-- n 维向量在参与 与 n+1 维向量的运算时，通过引入齐次坐标，使 n 维向量变为 n+1 维向量与 n+1 维向量运算，由于齐次坐标的齐次性，所以这样的升维计算并不影响最终结果
-  例：由于矩阵的加法总比乘法需要的矩阵高一维，所以需要**引入齐次坐标来合并矩阵的乘法和加法**
-
-
-齐次坐标表示两条平行线相交：
-
-- 在笛卡尔坐标系中，对于以下方程
-  如果 C $\neq$ D，方程无解
-  如果 C $=$ D，方程表示的两条线是同一条线
-  $$
-  \begin{cases}
-  Ax+By+C=0\\
-  Ax+By+D=0
-  \end{cases}
-  $$
-
-- 在投影空间中，对于以下方程
-  如果 C $\neq$ D，由 (C - D)w = 0 得 w = 0，**即当 w = 0 时并非无意义，而是表示一个无穷远**，所以两条平行线相交于'点' (x, y, 0)
-  如果 C $=$ D，方程表示的两条线是同一条线
-  $$
-  \begin{cases}
-  A{x\over w}+B{y\over w}+C=0\\
-  A{x\over w}+B{y\over w}+D=0
-  \end{cases}
-  \rightarrow
-  \begin{cases}
-  Ax+By+Cw=0\\
-  Ax+By+Dw=0
-  \end{cases}
-  $$
-
-
-
-
-齐次坐标区分点和向量：
-
-设基坐标为 (x, y, z)，原点为 O，则**点比向量需要额外的信息**
-
-- 向量 $\vec V(v_1, v_2, v_3) = v_1x + v_2y + v_3z$
-- 点 $P(p_1, p_2, p_3) - O = p_1x + p_2y + p_3z \rightarrow P(p_1, p_2, p_3) = p_1x + p_2y + p_3z + O$
-
-在齐次坐标 (x, y, z, w) 中，w = 0 代表无穷远，即一个方向
-- 非齐次坐标 转 齐次坐标
-  点     (x, y, z) 转为 (x, y, z, 1)
-  向量 (x, y, z) 转为 (x, y, z, 0)
-
-- 齐次坐标 转 非齐次坐标
-  (x, y, z, 1) 转为 点     (x, y, z)
-  (x, y, z, 0) 转为 向量 (x, y, z)
-
-
-
-
-### 1.4 左右手坐标系
-
-![](images/LRHandCoordinate.jpeg)
-
-判断叉乘后的方向
-
-- 在右手坐标系下，使用 **右手定则** 判断叉乘的方向
-- 在左手坐标系下，使用 **左手定则** 判断叉乘的方向
-
-![](images/cross3.png)
-
-
-
-### 1.5 惯性坐标系
-
-定义：原点在模型坐标系原点上，坐标轴平行于世界坐标轴
-作用：简化世界坐标系到模型坐标系的转换
-
-与其他坐标系的转化：物体坐标系 ${旋转 \over \to}$ 惯性坐标系 ${平移 \over \to}$ 世界坐标系
-
-
-
-## 2. 线形变换矩阵
-
-### 2.1 2D 变换矩阵
-![](images/2D_affine_transformation_matrix.svg)
-
-
-
-### 2.2 Scale
-
-![](images/scale.png)
-
-缩放比例为 K 在不同的坐标轴上的缩放比例不同，**这里假设 缩放方向 N 必过原点，且 N 为单位向量**
-
-推导：
-$$
-\begin{align}
-v_{||} &= {n \cdot v \over ||n||} \cdot {n \over ||n||} = (v \cdot n)n\\
-v'_{||} &= kv_{||}\\
-v'_{\bot} &= v_{\bot} (与缩放方向垂直的方向不受缩放的影响) \\
-v' &= v'_{||} + v'_{\bot}\\
-&= k(v \cdot n)n + (v - (v \cdot n)n)\\
-&= v+(k -1)(v \cdot n)n
-\end{align}
-$$
-
-- 核心公式：将三个基向量 v 分别沿 n 向量方向缩放后的向量构成的列矩阵为沿向量 n 的缩放矩阵
-  $$
-  v_{缩放后} = v + (K_{比例} - 1)(v \cdot n_{缩放方向})n_{缩放方向}
-  $$
-
-- 由 **基坐标** 构成的 **列向量** 变化矩阵
-    $$
-    \begin{array}{cc}
-    \begin{bmatrix}
-    K_x & 0 &0 \\
-    0 & K_y & 0\\
-    0 & 0 & K_z
-    \end{bmatrix}&
-    \begin{bmatrix}
-    1+(K-1)x^2 & (K-1)yx & (K-1)zx\\
-    (K-1)xy & 1+(K-1)y^2& (K-1)zy\\
-    (K-1)xz & (K-1)yz& 1+(K-1)z^2
-    \end{bmatrix}\\
-    沿坐标轴缩放 & 沿任意向量N_{(x,y,z)}缩放K
-    \end{array}
-    $$
-
-
-
-
-### 2.3 Reflect
-
-缩放比例为 -1 时，就是镜像，**这里假设 缩放方向 n 必过原点，且 N 为单位向量**
-
-- 核心公式：将三个基向量 v 分别沿 n 向量方向缩放 -1 （缩放核心公式的比例 K = -1）后的向量构成的列矩阵为沿向量 n 的镜像矩阵
-  $$
-  v_{镜像后} = v - 2(v \cdot n_{镜像方向})n_{镜像方向}
-  $$
-
-- 由 **基坐标** 构成的 **列向量** 变化矩阵
-  $$
-  \begin{array}{cccc}
-  \begin{bmatrix}
-  -1 & 0 & 0\\
-  0 & 1 & 0\\
-  0 & 0 & 1
-  \end{bmatrix} &
-  \begin{bmatrix}
-  1 & 0 & 0\\
-  0 & -1 & 0\\
-  0 & 0 & 1
-  \end{bmatrix} &
-  \begin{bmatrix}
-  -1 & 0 & 0\\
-  0 & -1 & 0\\
-  0 & 0 & 1
-  \end{bmatrix} &
-  \begin{bmatrix}
-  1-2x^2 & -2yx & -2zx\\
-  -2xy & 1-2y^2 & -2zy\\
-  -2xz & -2yz & 1-2z^2
-  \end{bmatrix}
-  \\沿 X 轴镜像 & 沿 Y 轴镜像 & 沿 y=-x 轴镜像 & 沿任意单位向量N_{(x,y,z)}镜像 
-  \end{array}
-  $$
-
-
-
-### 2.4 Rotate
-
-设 在**右手坐标系**，旋转角**逆时针**为正方向，**缩放方向 n 必过原点，且 N 为单位向量**
-
-- 核心公式：将三个基向量 v 分别绕向量 n 旋转后（代入核心公式后）的向量构成的列矩阵为 绕向量 n 的旋转矩阵，[公式推导](#4.2.3 三维空间旋转的拆分)
-  $$
-  v_{旋转后} = v \cdot cos\theta  + (v \cdot n_{旋转轴})n_{旋转轴}(1 - cos\theta) + (v \times n_{旋转轴})sin\theta
-  $$
-
-- 由 **基坐标** 构成的 **列向量** 变化矩阵
-    $$
-    \begin{array}{cccc}
-    \begin{bmatrix}
-    1 & 0 & 0\\
-    0 & cos\theta & sin\theta\\
-    0 &-sin\theta & cos\theta
-    \end{bmatrix} &
-    \begin{bmatrix}
-    cos\theta & 0 & -sin\theta\\
-    0 & 1 & 0\\
-    sin\theta & 0 & cos\theta
-    \end{bmatrix} &
-    \begin{bmatrix}
-     cos\theta & sin\theta & 0\\
-    -sin\theta & cos\theta & 0\\
-    0 & 0 & 1
-    \end{bmatrix} & = &
-    \begin{bmatrix}
-    (1-cos\theta)x^2 + cos\theta & (1-cos\theta)yx+sin\theta z & (1-cos\theta)zx - sin\theta y\\
-    (1-cos\theta)xy - sin\theta z & (1-cos\theta)y^2 + cos\theta & -(1-cos\theta)zy + sin\theta x\\
-    (1-cos\theta)xz + sin\theta y & (1-cos\theta)yz - sin\theta x & (1-cos\theta)z^2 + cos\theta
-    \end{bmatrix}\\
-    沿 X 轴旋转 & 沿 Y 轴旋转 & 沿 Z 轴旋转 & &沿任意向量N_{(x,y,z)}旋转 \theta
-    \end{array}
-    $$
-
-
-
-
-### 2.5 Shear
-![](images/shear.png)
-
-变化后体积和面积保持不变
-
-- 核心公式：x' = x + sy
-
-- 方法：将三个基向量 v 分别取出 x，y，z 中的任意一个值，乘以变换因子，在把它加到 x，y，z 中的其他轴的值上，例：取 x 乘以变换因子 K
-  $$
-  v_{切变后} =
-  \begin{bmatrix}
-  x \\ y + x * K_y \\ z + x * K_z
-  \end{bmatrix}
-  $$
-
-- 由 **基坐标** 构成的 **列向量** 变化矩阵
-  $$
-  \begin{array}{cccc}
-  \begin{bmatrix}
-  1 & K_y & K_z\\
-  0 & 1 & 0\\
-  0 & 0 & 1
-  \end{bmatrix} &
-  \begin{bmatrix}
-  1 & 0 & 0\\
-  K_x & 1 & K_z\\
-  0 & 0 & 1
-  \end{bmatrix} &
-  \begin{bmatrix}
-  1 & 0 & 0\\
-  0 & 1 & 0\\
-  K_x & K_y & 1
-  \end{bmatrix}
-  \\沿 X 轴切变 & 沿 Y 轴切变  & 沿 Z 轴切变 
-  \end{array}
-  $$
-
-
-
-## 3. 几何变换
-
-### 3.1 基础变换
-
-**可逆变换**
-
-- 可以**撤销**原来的变换
-- 变换矩阵是**非奇异**
-- 变换矩阵行**列式不为零**
-  
-
-**等角变换**
-
-- 变换后向量的**夹角不变**
-- 包括：平移、旋转、均匀缩放（镜像不是）
-
-**正交变换**
-
-- 变换矩阵 列/行 互相保持垂直，切为单位向量
-- 包括：平移、旋转、镜像
-- 变换矩阵行列式为 $\pm 1$
-- **可根据 正交变换矩阵 = 逆矩阵 求逆矩阵**
-
-**刚体变换**
-
-- 只改变位置和方向
-- 包括：平移、旋转（镜像不是）
-  
-
-###3.2 线性变换（可逆）
-
-定义：
-
-- 原点固定
-- 直线变换后保持直线
-- 网格保持 **平行** 且 **等距分布**
-
-实质：线形变换不会导致平移（原点位置不变）
-$$
-F(ka + b) = kF(a) + F(b)
-$$
-
-###3.3 仿射变换（可逆）
-
-仿射变换：*用于改变模型的位置和形状*
-
-定义：
-- 直线变换后保持直线
-- 网格保持 **平行** 且 **等距分布**
-
-实质：
-- 仿射变换 = 线性变换 + 平移
-- 一个向量空间 变换为 另一个向量空间
-- 增加一个维度后可以同过 **高维度的线性变换** 代替 **低维度的仿射变换**
-
-变换矩阵：例子，平移变换
-$$
-\begin{bmatrix}x & y & z & \color{red}1\end{bmatrix}
-\cdot
-\begin{bmatrix}
-1 & 0 & 0 & 0\\
-0 & 1 & 0 & 0\\
-0 & 0 & 1 & 0\\
-\color{red}{\Delta x} & \color{red}{\Delta y} & \color{red}{\Delta z} & \color{red}{1}\\
-\end{bmatrix}
-= \begin{bmatrix}x + \color{red}{\Delta x} & y + \color{red}{\Delta y} & z + \color{red}{\Delta z} & \color{red}1\end{bmatrix}
-$$
-
-同过 **高维度的线性变换** 代替 **低维度的仿射变换**
- ![](images/affine.gif)
-
-###3.4 投影变换（不可逆）
-
-> 投影是降维操作
-
-####3.4.1 正交投影
-
-OpenGL 中的正交投影
-
-> OpenGL 将世界坐标标准化为 X, Y, Z 范围均为 [-1,1] 的视角坐标内，然后在乘以透视矩阵得到二维图像
-
-![](images/orthogonal2.png)
-
-几何意义：
-- 图像远近大小相同
-- 点到投影后对应点的连线(投影线)与其他**投影线互相平行**
-- 在线形缩放的基础上，沿投影方向的缩放比例为 0，其他缩放比例不变
-
-简单的正交投影矩阵：
-$$
-\begin{array}{cccc}
-\begin{bmatrix}
-1 & 0 & 0\\
-0 & 1 & 0\\
-0 & 0 & 0
-\end{bmatrix} &
-\begin{bmatrix}
-1 & 0 & 0\\
-0 & 0 & 0\\
-0 & 0 & 1
-\end{bmatrix} &
-\begin{bmatrix}
-0 & 0 & 0\\
-0 & 1 & 0\\
-0 & 0 & 1
-\end{bmatrix} &
-\begin{bmatrix}
-1- x^2 & -yx & -zx\\
--xy & 1- y^2 & -zy\\
--xz & -yz & 1- z^2
-\end{bmatrix} 
-\\沿 Z 轴投影到 XY平面 & 沿 Y 轴投影到 XZ平面  & 沿 X 轴投影到 YZ平面 & 沿 N(x,y,z) 投影到垂直于 N 的平面上
-\end{array}
-$$
-
-OpenGL 中的正交投影矩阵 [推导过程](http://www.songho.ca/opengl/gl_projectionmatrix.html)
-
-$$
-\begin{bmatrix}
-2 \over {right - left} & 0 & 0 & -{{right + left}\over{right - left}}\\
-0 & 2 \over {top - bottom} & 0 & -{{top + bottom}\over{top - bottom}}\\
-0 & 0 & -2 \over {far - near} & -{{far + near}\over{far - near}}\\
-0 & 0 & 0 & 1
-\end{bmatrix}
-{
-如果，投影体对称
-\over
-\Longrightarrow
-}
-\begin{bmatrix}
-1 \over right & 0 & 0 & 0\\
-0 & 1 \over top & 0 & 0\\
-0 & 0 & -2 \over {far - near} & -{{far + near}\over{far - near}}\\
-0 & 0 & 0 & 1
-\end{bmatrix}
-$$
-
-![](images/orthogonal.png)
-
-
-
-####3.4.2 透视投影
-
-OpenGL 中的透视投影
-
-> OpenGL 将世界坐标标准化为 X, Y, Z 范围均为 [-1,1] 的视角坐标内，然后在乘以透视矩阵得到二维图像
-
-
-![](images/projection2.png)
-
-
-几何意义：
-
-- 图像近大远小
-- 点到投影后对应点的连线(投影线)与其他**投影线相交于一点**（投影中心）
-- 小孔成像：投影中心 在 投影平面 前
-
-核心公式：
-
-- 投影中心 在 投影平面 前, d < 0
-  投影中心 在 投影平面 后, d > 0
-
-  ![](images/projection.png)
-  $$
-  G_{投影后} (x^, , y^,, z^,) = (d \cdot x/z, d \cdot y/z, d), A_{投影前}(x,y,z)
-  $$
-
-
-
-OpenGL 中透视投影矩阵，[推导过程](http://www.songho.ca/opengl/gl_projectionmatrix.html)
-
-> FOV：Field Of View (视场角) 决定视野范围，视场角越大，焦距越小
-
-$$
-\begin{bmatrix}
-2 \cdot near \over {right - left} & 0 & {right + left}\over{right - left} & 0\\
-0 & 2 \cdot near \over {top - bottom} & {top + bottom}\over{top - bottom} & 0\\
-0 & 0 & -({far + near}) \over {far - near} & -2 \cdot far \cdot near\over{far - near}\\
-0 & 0 & -1 & 0
-\end{bmatrix}
-{
-如果，投影体对称
-\over
-\Longrightarrow
-}
-\begin{bmatrix}
-near \over right & 0 & 0 & 0\\
-0 & near \over top & 0 & 0\\
-0 & 0 & -({far + near}) \over {far - near} & -2 \cdot far \cdot near\over{far - near}\\
-0 & 0 & -1 & 0
-\end{bmatrix}
-$$
-
-![](images/perspective.png)
-
-
-
-## 4. 3D 中的方位与角位移
 **方位**：从上一方位旋转后的 结果值（单一状态，用欧拉角表示）
 **角位移**：相对于上一方位旋转后的 偏移量（用四元数、矩阵表示）
 
-### 4.1 欧拉角 (Euler angles)
+
+
+## 1. 欧拉角 (Euler angles)
+
 定义：
 
 - 欧拉角可以用来描述任意旋转，将一个角位移分解为三个互相垂直轴的**顺序旋转步骤**
@@ -577,9 +45,9 @@ yaw：绕**模型坐标系**的 Y 轴旋转
 
 
 
-### 4.2 四元数的相关知识
+## 2. 四元数的相关知识
 
-#### 4.2.1 复数
+### 2.1 复数
 
 [复数](https://en.wikipedia.org/wiki/Complex_number)是一种复合的数字，$C_{复数} = a + b \cdot i$ ，其中 a、b 为实数，$i$ 为虚数，$i^2 = -1$
 
@@ -593,7 +61,8 @@ yaw：绕**模型坐标系**的 Y 轴旋转
 ![](images/complex_number.png)
 
 
-#### 4.2.2 欧拉旋转定理
+
+### 2.2 欧拉旋转定理
 
 ![](images/EularRotate.png)
 
@@ -615,7 +84,9 @@ yaw：绕**模型坐标系**的 Y 轴旋转
 
 2. 在不知道当前角位移的情况下，**可以通过当前方位+角位移计算出之后的方位**
 
-#### 4.2.3 三维空间旋转的拆分
+
+
+### 2.3 三维空间旋转的拆分
 
 四元数在表示三维空间旋转的方式时采用**轴角式（Axis-angle）**的旋转
 轴角式旋转方法如下图，v 绕过原点的方向向量 u 逆时针旋转 $\theta$ 得到 v ’ （图中采用右手坐标系，逆时针旋转方向为正方向）
@@ -659,7 +130,7 @@ yaw：绕**模型坐标系**的 Y 轴旋转
 
 
 
-### 4.3 四元数 (Quaternion)
+## 3. 四元数 (Quaternion)
 
 > 相对于复数的二维空间，为了解决三维空间的旋转变化问题，爱尔兰数学家 William Rowan Hamilton 把复数进行了推广，也就是四元数
 >
@@ -702,7 +173,8 @@ $$
 - 难以直接使用
 
 
-#### 4.3.1 四元数的运算
+
+### 3.1 四元数的运算
 
 - **乘法，合并两个四元数的偏移量，得到总的角位移**
   四元数的乘法有很多种，其中最常用的一种是格拉丝曼积，与数学多项式乘法相同（与复数乘法概念相同）
@@ -755,7 +227,7 @@ $$
 
 
 
-#### 4.3.2 四元数默认在极坐标下
+### 3.2 四元数默认在极坐标下
 
 **极坐标下的优势：使四元数的运算和向量的运算方法一致**
 
@@ -808,7 +280,7 @@ $$
 
 
 
-#### 4.3.3 四元数的常用插值方法
+### 3.3 四元数的常用插值方法
 
 所有插值用的旋转四元数**都是单位四元数**
 插值要采用弧面最短路径
@@ -860,7 +332,7 @@ $$
 
 
 
-#### 4.3.4 贝塞尔曲线和 Squad 插值
+### 3.4 贝塞尔曲线和 Squad 插值
 
 **样条（Spline）**：在一个向量序列 $v_0,v_1,...,v_n$ 中分别对每对向量 $v_i,v_{i+1}$ 进行插值后互相连接得到的曲线
 
@@ -913,9 +385,9 @@ $$
 
 
 
-### 4.4 欧拉角、旋转矩阵、四元数的互相转换
+## 4 欧拉角、旋转矩阵、四元数的互相转换
 
-#### 4.4.1 欧拉角和旋转矩阵
+### 4.1 欧拉角和旋转矩阵
 
 [欧拉角](#4.1 欧拉角 (Euler angles)) $ \to $ 旋转矩阵
 
@@ -1021,7 +493,7 @@ $$
 
 
 
-#### 4.4.2 四元数和旋转矩阵
+### 4.2 四元数和旋转矩阵
 
 [四元数](#4.3 四元数 (Quaternion)) $ \to$ 旋转矩阵 
 
@@ -1121,7 +593,7 @@ $$
 
 
 
-#### 4.4.3 欧拉角和四元数
+### 4.3 欧拉角和四元数
 
 [四元数](#4.3 四元数 (Quaternion)) $ \to $ [欧拉角](#4.1 欧拉角 (Euler angles))
 
@@ -1166,13 +638,11 @@ sin{H \over 2}sin{P \over 2}cos{R \over 2}-cos{H \over 2}cos{P \over 2}sin{R \ov
 $$
 ![](images/rollPichYaw.png)
 
-## 5. 参考
 
-- 齐次坐标解释平行线相交：http://www.songho.ca/math/homogeneous/homogeneous.html
-- 齐次坐标的说明：https://blog.csdn.net/business122/article/details/51916858
-- 齐次坐标的理解：http://www.cnblogs.com/csyisong/archive/2008/12/09/1351372.html
-- 欧拉角，万向锁：http://v.youku.com/v_show/id_XNzkyOTIyMTI
-- 投影矩阵的推导：http://www.songho.ca/opengl/gl_projectionmatrix.html
-- 四元数的可视化解释：https://www.bilibili.com/video/av33385105/#reply1117064951
-- 四元数的证明方式解释：https://krasjet.github.io/quaternion/
-- 四元数在三维计算的几何意义：https://qiita.com/HMMNRST/items/0a4ab86ed053c770ff6a
+# 引用
+
+- [欧拉角，万向锁 视频解释](http://v.youku.com/v_show/id_XNzkyOTIyMTI)
+- [四元数的可视化解释](https://www.bilibili.com/video/av33385105/#reply1117064951)
+- [四元数的证明方式解释](https://krasjet.github.io/quaternion/)
+- [四元数在三维计算的几何意义](https://qiita.com/HMMNRST/items/0a4ab86ed053c770ff6a)
+

@@ -1,6 +1,6 @@
 [TOC]
 
-# 十、三角形
+# 十二、三角形
 
 ## 1. 内心
 
@@ -14,6 +14,7 @@
 $$
 (x_I,y_I) = {a(x_A,y_A)+b(x_B,y_B)+c(x_C,y_C) \over a+b+c}
 $$
+
 
 
 ## 2. 求面积
@@ -33,7 +34,7 @@ S_{\Delta ABC}
 \end{align}
 $$
 
-设 $a=x_2-x_1, \space b=y_2-y_1, \space c=x_3-x_1, \space d=y_3-y_1​$  则 
+设 $a=x_2-x_1, \space b=y_2-y_1, \space c=x_3-x_1, \space d=y_3-y_1$  则 
 
 $$
 \begin{align}

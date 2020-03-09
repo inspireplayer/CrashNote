@@ -1,6 +1,6 @@
 [TOC]
 
-# 一、纹理
+# 一、纹理基础
 
 ## 1. 纹理环绕（坐标包装）
 
@@ -43,6 +43,8 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //缩小
 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  //放大
 ```
 
+
+
 ### 2.1 最近点采样 GL_NEAREST
 
 优点：效率最高
@@ -52,6 +54,8 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  //放大
 
 ![](images/texture_nearest.png)
 
+
+
 ### 2.2 双线性过滤 GL_LINEAR
 
 优点：适于处理有一定精深的静态影像
@@ -60,6 +64,8 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  //放大
 方法：选择最接近中心点纹理坐标的 2 X 2 纹理单元矩阵进行采样，取 **4 个纹理单元**采样的平均值
 
 ![](images/texture_linear.png)
+
+
 
 ### 2.3 三线性过滤 GL_LINEAR_MIPMAP_LINEAR
 
@@ -81,6 +87,7 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  //放大
 2. 将 1 中选取的纹理 选择最接近中心点纹理坐标的 2 X 2 纹理单元矩阵进行采样（线性过滤）
 
 3. 将 2 中两次采样的结果进行加权平均（**8 个纹理单元**采样），得到最后的采样数据
+
 
 
 ### 2.4 各向异性过滤
