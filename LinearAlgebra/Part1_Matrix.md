@@ -429,7 +429,7 @@ $$
 
 #### 3.4.2 正交投影
 
-OpenGL、Unity 中的正交投影
+OpenGL、Unity 中的正交投影（相机坐标系为右手坐标系）
 
 ![](images/orthogonal2.png)
 
@@ -495,7 +495,25 @@ $$
 
 
 
-**另一种表示正交投影矩阵的方式**
+DriectX  的正交投影矩阵为
+
+- **行主序矩阵**
+-  Z 的标准设备空间范围限定为 [0,1]
+- 相机坐标系为 **左手坐标系**
+
+$$
+M_{DriectX \space 正交} = 
+\begin{bmatrix}
+1 \over right & 0 & 0 & 0 \\
+0 & 1 \over top & 0 & 0\\
+0 & 0 & {1 \over {far - near}} & 0\\
+0 & 0 & -{ near \over {far - near}} & 1\\
+\end{bmatrix}
+$$
+
+
+
+**另一种表示 OpenGL、Unity 正交投影矩阵的方式**
 $$
 M_{正交} = 
 \begin{bmatrix}
@@ -530,7 +548,7 @@ $$
 
 ####3.4.3 透视投影
 
-OpenGL、Unity 中的透视投影
+OpenGL、Unity 中的透视投影（相机坐标系为右手坐标系）
 
 ![](images/projection.png)
 
@@ -574,14 +592,33 @@ $$
 
 
 
-**另一种表示投影矩阵的方式**
+DriectX  的透视投影矩阵为
+
+- **行主序矩阵**
+-  Z 的标准设备空间范围限定为 [0,1]
+- 相机坐标系为 **左手坐标系**
+
+$$
+M_{DriectX \space 透视} = 
+\begin{bmatrix}
+near \over right & 0 & 0 & 0 \\
+0 & near \over top & 0 & 0\\
+0 & 0 & {far \over {far - near}} & 1\\
+0 & 0 & -{far \cdot near \over {far - near}} & 0\\
+\end{bmatrix}
+$$
+
+
+
+**另一种表示 OpenGL、Unity  投影矩阵的方式**
 $$
 Height_{near} = 2 \cdot near \cdot \tan{FOV \over 2} \\
+
 M_{透视} = 
 \begin{bmatrix}
 \cot{FOV \over 2} \over Aspect & 0 & 0 & 0 \\
 0 & \cot{FOV \over 2} & 0 & 0 \\
-0 & 0 & -({far + near}) \over {far - near} & -2 \cdot far \cdot near \over {far - near} \\
+0 & 0 & -{{far + near} \over {far - near}} & -{2 \cdot far \cdot near \over {far - near}} \\
 0 & 0 & -1 & 0 \\
 \end{bmatrix}
 $$
