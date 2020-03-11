@@ -103,7 +103,7 @@ $$
 
 
 
-齐次坐标表示两条平行线相交：
+**齐次坐标表示两条平行线相交**：
 
 - 在笛卡尔坐标系中，对于以下方程
   如果 C $\neq$ D，方程无解
@@ -116,7 +116,7 @@ $$
   $$
 
 - 在投影空间中，对于以下方程
-  如果 C $\neq$ D，由 (C - D)w = 0 得 w = 0，**即当 w = 0 时并非无意义，而是表示一个无穷远**，所以两条平行线相交于'点' (x, y, 0)
+  如果 C $\neq$ D，由 (C - D)w = 0 得 w = 0，**即当 w = 0 时并非无意义，而是表示一个无穷远**，所以两条平行线相交于点 (x, y, 0)，这个点在无穷远处
   如果 C $=$ D，方程表示的两条线是同一条线
   $$
   \begin{cases}
@@ -132,8 +132,7 @@ $$
 
 
 
-
-齐次坐标区分点和向量：
+**齐次坐标区分点和向量**：
 
 设基坐标为 (x, y, z)，原点为 O，则**点比向量需要额外的信息**
 
@@ -415,13 +414,22 @@ $$
 
 ###3.4 投影变换（不可逆）
 
-> 投影是降维操作
+#### 3.4.1 投影
 
-####3.4.1 正交投影
+投影是降维操作，数学上的投影为了便于计算将投影后的物体和被投影的物体放在一侧
 
-OpenGL 中的正交投影
+![](./images/projection1.png)
+$$
+\begin{align}
+P  &= (x,y,z) \\
+P' &= ({x \over z}, {y \over z}, z)
+\end{align}
+$$
 
-> OpenGL 将世界坐标标准化为 X, Y, Z 范围均为 [-1,1] 的视角坐标内，然后在乘以透视矩阵得到二维图像
+
+#### 3.4.2 正交投影
+
+OpenGL、Unity 中的正交投影
 
 ![](images/orthogonal2.png)
 
@@ -429,6 +437,8 @@ OpenGL 中的正交投影
 - 图像远近大小相同
 - 点到投影后对应点的连线(投影线)与其他**投影线互相平行**
 - 在线形缩放的基础上，沿投影方向的缩放比例为 0，其他缩放比例不变
+
+
 
 简单的正交投影矩阵：
 $$
@@ -457,9 +467,13 @@ $$
 \end{array}
 $$
 
-OpenGL 中的正交投影矩阵 [推导过程](http://www.songho.ca/opengl/gl_projectionmatrix.html)
 
+
+**OpenGL 中的正交投影矩阵** [推导过程](http://www.songho.ca/opengl/gl_projectionmatrix.html)
+
+![](images/orthogonal.png)
 $$
+M_{正交} = 
 \begin{bmatrix}
 2 \over {right - left} & 0 & 0 & -{{right + left}\over{right - left}}\\
 0 & 2 \over {top - bottom} & 0 & -{{top + bottom}\over{top - bottom}}\\
@@ -467,7 +481,7 @@ $$
 0 & 0 & 0 & 1
 \end{bmatrix}
 {
-如果，投影体对称
+投影体对称
 \over
 \Longrightarrow
 }
@@ -479,18 +493,46 @@ $$
 \end{bmatrix}
 $$
 
-![](images/orthogonal.png)
+
+
+**另一种表示正交投影矩阵的方式**
+$$
+M_{正交} = 
+\begin{bmatrix}
+1 \over Aspect \cdot Size & 0 & 0 & 0\\
+0 & 1 \over Size & 0 & 0\\
+0 & 0 & -2 \over {far - near} & -{{far + near}\over{far - near}}\\
+0 & 0 & 0 & 1
+\end{bmatrix}
+$$
 
 
 
-####3.4.2 透视投影
+**标准设备空间坐标的转换**
 
-OpenGL 中的透视投影
+1. 得到裁剪空间的坐标
 
-> OpenGL 将世界坐标标准化为 X, Y, Z 范围均为 [-1,1] 的视角坐标内，然后在乘以透视矩阵得到二维图像
+$$
+M_{正交}
+\begin{bmatrix}
+x \\ y \\ z \\ 1
+\end{bmatrix}
+= 
+\begin{bmatrix}
+{1 \over right}x \\ {1 \over top}y \\ {-2 \over {far - near}}z -{{far + near}\over{far - near}} \\ 1
+\end{bmatrix}
+$$
+
+2. 裁剪：取裁剪空间坐标的 x, y, z 的值均在 [-1, 1] 范围内的值
+3. 此时 w 分量为 1，得到标准设备空间坐标
 
 
-![](images/projection2.png)
+
+####3.4.3 透视投影
+
+OpenGL、Unity 中的透视投影
+
+![](images/projection.png)
 
 
 几何意义：
@@ -499,43 +541,84 @@ OpenGL 中的透视投影
 - 点到投影后对应点的连线(投影线)与其他**投影线相交于一点**（投影中心）
 - 小孔成像：投影中心 在 投影平面 前
 
-核心公式：
-
-- 投影中心 在 投影平面 前, d < 0
-  投影中心 在 投影平面 后, d > 0
-
-  ![](images/projection.png)
-  $$
-  G_{投影后} (x^,, y^,, z^,) = (d \cdot x/z, d \cdot y/z, d), A_{投影前}(x,y,z)
-  $$
 
 
+**OpenGL 中透视投影矩阵**，[推导过程](http://www.songho.ca/opengl/gl_projectionmatrix.html)
 
-OpenGL 中透视投影矩阵，[推导过程](http://www.songho.ca/opengl/gl_projectionmatrix.html)
+FOV：Field Of View (视场角) 决定视野范围，视场角越大，焦距越小
 
-> FOV：Field Of View (视场角) 决定视野范围，视场角越大，焦距越小
+Aspect：横纵比，宽 : 高
+
+![](images/perspective.png)
 
 $$
+M_{透视} = 
 \begin{bmatrix}
 2 \cdot near \over {right - left} & 0 & {right + left}\over{right - left} & 0\\
 0 & 2 \cdot near \over {top - bottom} & {top + bottom}\over{top - bottom} & 0\\
-0 & 0 & -({far + near}) \over {far - near} & -2 \cdot far \cdot near\over{far - near}\\
+0 & 0 & -{{far + near} \over {far - near}} & -{2 \cdot far \cdot near \over {far - near}}\\
 0 & 0 & -1 & 0
 \end{bmatrix}
 {
-如果，投影体对称
+投影体对称
 \over
 \Longrightarrow
 }
 \begin{bmatrix}
 near \over right & 0 & 0 & 0\\
 0 & near \over top & 0 & 0\\
-0 & 0 & -({far + near}) \over {far - near} & -2 \cdot far \cdot near\over{far - near}\\
+0 & 0 & -{{far + near} \over {far - near}} & -{2 \cdot far \cdot near \over {far - near}}\\
 0 & 0 & -1 & 0
 \end{bmatrix}
 $$
 
-![](images/perspective.png)
+
+
+**另一种表示投影矩阵的方式**
+$$
+Height_{near} = 2 \cdot near \cdot \tan{FOV \over 2} \\
+M_{透视} = 
+\begin{bmatrix}
+\cot{FOV \over 2} \over Aspect & 0 & 0 & 0 \\
+0 & \cot{FOV \over 2} & 0 & 0 \\
+0 & 0 & -({far + near}) \over {far - near} & -2 \cdot far \cdot near \over {far - near} \\
+0 & 0 & -1 & 0 \\
+\end{bmatrix}
+$$
+
+
+
+**标准设备空间坐标的转换**
+
+1. 得到裁剪空间的坐标
+
+$$
+M_{透视}
+\begin{bmatrix}
+x \\ y \\ z \\ 1
+\end{bmatrix}
+= 
+\begin{bmatrix}
+{near \over right}x \\ {near \over top}y \\ {-{{far + near} \over {far - near}}}z -{2 \cdot far \cdot near \over {far - near}} \\ -z
+\end{bmatrix}
+$$
+
+2. 裁剪：取裁剪空间坐标的 x, y, z 的值均在 [-z, z] 范围内的值
+3. 让坐标的 w 分量再次变为 1，得到标准设备空间坐标
+
+$$
+\begin{bmatrix}
+{near \over right}x \\ {near \over top}y \\ {-{{far + near} \over {far - near}}}z -{2 \cdot far \cdot near \over {far - near}} \\ -z
+\end{bmatrix}
+=
+\begin{bmatrix}
+- {near \over right}{x \over z} \\ 
+-{near \over top}{y \over z} \\ 
+{{far + near} \over {far - near}} +{2 \cdot far \cdot near \over {far - near}}{1 \over z} \\ 1
+\end{bmatrix}
+$$
+
+
 
 
 
