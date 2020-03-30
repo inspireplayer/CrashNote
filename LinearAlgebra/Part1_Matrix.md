@@ -630,7 +630,12 @@ $$
 1. 得到裁剪空间的坐标
 
 $$
-M_{透视}
+\begin{bmatrix}
+near \over right & 0 & 0 & 0\\
+0 & near \over top & 0 & 0\\
+0 & 0 & -{{far + near} \over {far - near}} & -{2 \cdot far \cdot near \over {far - near}}\\
+0 & 0 & -1 & 0
+\end{bmatrix}
 \begin{bmatrix}
 x \\ y \\ z \\ 1
 \end{bmatrix}
@@ -654,8 +659,6 @@ $$
 {{far + near} \over {far - near}} +{2 \cdot far \cdot near \over {far - near}}{1 \over z} \\ 1
 \end{bmatrix}
 $$
-
-
 
 
 

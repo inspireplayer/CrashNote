@@ -36,31 +36,8 @@
 
 
 
-## 3. 光的衰减
 
-衰减(Attenuation)：随着光线传播距离的增长逐渐削减光的强度
-
-光的衰减的模拟公式（其中 $K_c$、$K_l$、$K_q$ 的取值都是经验值）
-
-- $K_c$ 通常保持为 1.0，它的主要作用是保证分母永远不会比1小，否则的话在某些距离上它反而会增加强度，这肯定不是我们想要的效果
-- $K_l$ 与距离值相乘，以线性的方式减少强度
-- $K_q$ 与距离的平方相乘，让光源以二次递减的方式减少强度。二次项在距离比较小的时候影响会比一次项小很多，但当距离值比较大的时候它就会比一次项更大了
-
-$$
-L_{att} = {1.0 \over K_c + K_l * d + K_q * d^2}
-$$
-
-
-
-实际的光的衰减的计算会简化为（Unity 内使用的计算公式）
-$$
-L_{att} = {1.0 \over D_{光源到着色物体的距离}}
-$$
-
-
-
-
-## 4. BRDF 光照模型
+## 3. BRDF 光照模型
 
 **着色（shading）**：计算某个观察方向出射度的过程，期间需要材质属性、光源信息 和 一个等式（这个等式也称为光照模型）
 
@@ -102,18 +79,28 @@ $$
 - **自发光 Emissive**：直接由光源发射的光照，一般为材质的颜色
   实时渲染中自发光不会作为光源来照亮其他物体
 
-- **漫反射 Diffuse**：物体表面随机散射后反射的光照，符合 Lambert's Law 
+- **漫反射 Diffuse**：物体表面随机散射后反射的光照
+  
+  **兰伯特光照模型**（物体背面的光照不会参与着色计算）
+  
   反射的光线强度 与 表面法线和光源方向夹角 的余弦值 成正比
+  
   由于 两个单位向量的点积 $\hat n \cdot I = |\hat n||I| \cos \theta = \cos \theta$
   所以 反射的光线强度 和 **单位**表面法线和**单位**光源方向 的点积 成正比
+  其中，max 函数防止出现表面法线 $n$ 和 光源方向 $I$ 夹角 $\theta$ 大于 90 度的情况（即，光源被物体遮挡的情况）
   
   ![](./images/light_diffuse.png)
 $$
-  Color_{diff} = Color_{light} \cdot Color_{材质强度} \max(0, n \cdot I)
+Color_{diff} = Color_{light} \cdot Color_{材质强度} \max(0, n \cdot I)
 $$
-  其中，max 函数防止出现表面法线 $n$ 和 光源方向 $I$ 夹角 $\theta$ 大于 90 度的情况（即，光源被物体遮挡的情况）
 
-  
+​		**半兰伯特光照模型**（物体背面的光照会参与着色计算）基于兰伯特光照模型
+​		不通过限制余弦值的大小而是将余弦值的范围从 [-1, 1] 映射到 [0, 1]
+​		采用半兰伯特光照模型的漫反射颜色计算公式为
+$$
+Color_{diff} = Color_{light} \cdot Color_{材质强度} (0.5 + 0.5* n \cdot I)
+$$
+
 
 - **高光反射 Specular**：
   
@@ -141,7 +128,6 @@ $$
   Gloss：光泽度，控制高光区域的亮点（光泽度越大，亮点越小）
   
   max 函数防止出现 $v$ 和 $r$ 夹角 $\theta$ 大于 90 度的情况（即，光源在摄像头后侧的情况）
-  
   
 
 
@@ -183,9 +169,26 @@ Blinn-Phong 较 Phong 具有更真实的光照效果
 
 
 
+## 4. Fresnel reflection 菲涅耳反射
+
+菲涅耳反射：观察方向和物体表面法线的夹角越大，反射效果越明显
+
+近似公式，其中 $v$ 表示视角方向，$n$ 表示物体表面法线
+
+- Schlick 菲涅耳近似公式 $F_{schlick}(v,n) = F_0 + (1-F_0)(1-v \cdot n)^5$
+- Empricial 菲涅耳近似公式 $F_{empricial}(v,n) = max(0,min(1, bias + scale * (1- v \cdot n)^{power}))$
+  其中 bias，scale，power 是控制项
+
+![](./images/light_fresenel_reflection.png)
 
 
-## 4. 基于物理的光照模型
+
+## 5. 基于物理的光照模型
+
+限于篇幅问题，这里只列参考文章：
+
+- [Unity Shader: 基于物理的渲染](./EXT2_UnityShadersChapter18.pdf)
+
 
 
 
@@ -197,23 +200,160 @@ Blinn-Phong 较 Phong 具有更真实的光照效果
 
 
 
-## 1. 平行光
+## 1. 平行光 Directional light
 
-## 2. 点光源
+平行光，又称定向光：光源处于无限远处，所有光线有相同的方向
 
-## 3. 聚光
+- 不考虑光源位置，只考虑光的方向
+- 表示用方向：平行光从光源发出的方向
+- 计算用方向：平行光从片段发出到光源的方向（与平行光的表示相反）
+
+![](./images/irradiance.png)
+
+
+
+## 2. 点光源 Point light
+
+点光源：光源处于世界中某一个位置的光源，它会朝着所有方向发光，但光线会随着距离逐渐衰减
+
+- 计算用方向：平行光从片段发出到点光源的方向
+- 衰减系数：点光源的最终结果需要乘以一个衰减系数
+
+![](./images/light_point.png)
+
+
+
+**光的衰减**
+
+衰减(Attenuation)：随着光线传播距离的增长逐渐削减光的强度
+
+光的衰减的模拟公式（其中 $K_c$、$K_l$、$K_q$ 的取值都是经验值）
+
+- $K_c$ 通常保持为 1.0，它的主要作用是保证分母永远不会比1小，否则的话在某些距离上它反而会增加强度，这肯定不是我们想要的效果
+- $K_l$ 与距离值相乘，以线性的方式减少强度
+- $K_q$ 与距离的平方相乘，让光源以二次递减的方式减少强度。二次项在距离比较小的时候影响会比一次项小很多，但当距离值比较大的时候它就会比一次项更大了
+
+$$
+L_{att} = {1.0 \over K_c + K_l * d + K_q * d^2}
+$$
+
+
+
+实际的光的衰减的计算
+
+1. 通过一张 256 * 1 的纹理作为查找表
+   通过的**点到光源距离的平方** 来（为了避免开方操作）查找衰减值（Unity 内的光衰减纹理）
+2. 使用简化后的数学公式计算衰减（Unity 内使用的计算公式）
+
+$$
+L_{att} = {1.0 \over D_{光源到着色物体的距离}}
+$$
+
+
+
+## 3. 聚光 Spot light
+
+聚光：只朝一个特定方向而不是所有方向照射光线，只有在聚光方向的特定半径内的物体才会被照亮，其它的物体都会保持黑暗
+
+- LightDir：聚光照射到片元的方向
+
+- SpotDir：聚光的方向
+
+- $\phi$ 切光角：聚光的照在物体上光圈的半径大小
+
+- $\theta$ LightDir 和 SpotDir 之间的夹角
+
+
+![](./images/light_spotlight.png)
+
+
+
+**聚光的边缘软化**
+
+- 聚光边缘强度变化：需要一个内切光角和一个外切光角，通过从内到外切光角的过渡来表示聚光强度的变化
+
+- 强度计算公式，其中
+$I$ 为聚光强度，范围是 [0, 1] 
+$\theta$ 为 LightDir 和 SpotDir 之间的夹角
+$\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作为聚光的属性，都是常数）
+
+  $I = {\theta - \phi \over cos\gamma - cos\phi}$
+
+
+
+
+## 4. 面光源 Area light
+
+> 由于面光源会同时从几个不同的方向照亮对象，因此阴影比其他类型的光更柔和细微
+> 可用于创建逼真的路灯或靠近播放器的一排灯
+>
+> 小面积的光源可以模拟较小的光源（例如室内照明），比点光源具有更逼真的效果
+
+面光源：由空间中的矩形限定，在所有方向上均匀地在其表面区域上发出光，但仅从矩形的一侧发出
+
+![](./images/light_area.png)
+
+
 
 
 
 # 四、渲染路径 Rendering Path
 
+渲染路径：决定光照如何应用到 shader 中，是当前渲染目标使用光照的流程
 
 
-## 1. 前向渲染路径 Forward
 
-## 2. 延迟渲染路径 Deferred
+## 1. 前向渲染 Forward
 
-## 3. 顶点照明渲染路径 
+前向渲染路径（Unity 默认渲染路径）
+
+- 方法：对场景中的每个物体进行着色，在 VS 或 FS 对 每个光源逐个进行计算（世界坐标系）
+- 缺点：光源数量越多，计算越复杂
+- 适合场景：光源较少的场景，室外
+- 优化：有些作用程度特别小的光源可以不进行考虑（Unity 中只考虑重要程度最大的前 4 个光源）
+
+
+
+## 2. 延迟渲染 Deferred
+
+延迟渲染
+
+- 方法：将光照处理这一步放在三维物体已经生成二维图片之后进行处理（屏幕坐标系）
+  1. 几何阶段：渲染所有 几何/颜色 到 G-Buffer（Geometry Buffer）
+     G-Buffer：用来存储每个像素对应的 Position，Normal，Diffuse Color 和其他 Material parameters（所有变量都在**世界坐标系**下）
+     
+     > 此时，已经剔除了许多 3D 场景中的数据，只剩下少量由几何 mesh 组成的片元信息
+     >
+     > 通过 多渲染目标(Multiple Render Targets, MRT)技术，可以一此渲染完成对像素 位置、颜色、法线等对象信息到多个帧缓冲里
+  2. 光照处理阶段：使用 G-buffer 计算场景的光照渲染
+  
+- 缺点：
+  
+  1. 虽然复杂度不虽光源数目的增加而产生巨大变化，但是随着场景的复杂增加 G-Buffer 会越来越大，增幅也是不能忽视的，而且存取 G-Buffer 耗费的带宽也是不能忽视的
+  2. 不支持真正的抗锯齿功能
+  3. 不能处理半透明物体（G buffer 只有最前面的片段信息）
+  4. 对显卡有一定要求（Shader Mode 3.0 及以上）
+  
+- 适合场景：室内
+
+- 优化：
+
+  1. 光体积
+     光源能够达到片段的范围（通过光的衰减计算出光的半径）
+     一般通过渲染光的衰减半径的球体来确定光源的影响范围
+
+     根据衰减公式可知，衰减值只能无限接近于 0，因此需要通过选定一个衰减的最小值来限定光的范围
+     一般 $L_{att} = {x \over 256}$，除以 256 是因为默认的 8-bit 帧缓冲可以每个分量显示这么多强度值
+     $$
+     \begin{align}
+     L_{att} &= {1.0 \over K_c + K_l * d + K_q * d^2}\\
+     K_q * d^2 + K_l * d + K_c &= {1.0 \over L_{att}}\\
+     K_q * d^2 + K_l * d + K_c - {1.0 \over L_{att}} &= 0\\
+     d &= {-K_l + \sqrt{K_l^2 - 4*K_q*(K_c - {1.0 \over L_{att}})} \over 2 * K_q}
+     \end{align}
+     $$
+     
+2. Light Pre-Pass、Tile-Based Deferred Rendering、Forward+
 
 
 
@@ -221,11 +361,90 @@ Blinn-Phong 较 Phong 具有更真实的光照效果
 
 # 五、 阴影
 
-## 1. 基本方法
+## 1. 阴影映射 Shadow Mapping
 
-## 2. 不透明物体的阴影
+方法：
+
+1. 渲染深度贴图（阴影贴图）
+   以光的位置为视角进行渲染，我们能看到的东西都将被点亮，看不见的是阴影
+2. 渲染场景
+   根据生成的深度贴图，通过将当前视角的坐标变换为深度贴图的坐标（光源头空间坐标）来计算片段是否在阴影之中
+
+
+
+重点：
+
+1. 获取阴影贴图的值为透视投影下的非线性深度值
+
+   **解决方案**：将非线性深度值通过透视投影的逆变换转换为线性深度，[投影矩阵](../LinearAlgebra/Part1_Matrix.md)
+   $$
+   \begin{align}
+   Z_n &= {{far + near} \over {far - near}} +{2 \cdot far \cdot near \over {far - near}}{1 \over Z_{linear}} \\
+   (far - near)Z_n &= (far + near) + 2 \cdot far \cdot near {1 \over Z_{linear}} \\
+   {(far - near)Z_n - (far + near) \over 2 \cdot far \cdot near} &= {1 \over Z_{linear}} \\
+   Z_{linear} &= {2 \cdot far \cdot near \over (far - near)Z_n - (far + near)}
+   \end{align}
+   $$
+   
+2. 阴影贴图有一定的范围，无法覆盖所有场景
+
+   ![](./images/shadow_texture_scope.png)
+
+   **解决方案**：让阴影贴图范围外的没有阴影
+   <u>边缘超出阴影贴图</u>：将阴影贴图的纹理环绕选项设置为 GL_CLAMP_TO_BORDER，给边框设一个较亮的白色
+   <u>深度 Z 超出阴影贴图裁剪范围</u>：将在光源空间坐标下深度大于 1 的阴影去掉
+
+   
+
+3. 阴影贴图受限于分辨率，画出的阴影有锯齿感
+
+   ![](./images/shadow_soft.png)
+
+   **解决方案**：PCF（percentage-closer filtering）
+   计算阴影时，多次进行深度图的采样计算，给做一次均值滤波，来模糊阴影边缘的锯齿
+
+   
+
+4. 在**距离光源比较远**时，多个片段会从深度贴图的同一个值中采样
+   当光以一定角度朝向物体表面时，物体表面会产生明显的线条样式
+
+   ![](./images/shadow_line.png)
+
+   **解决方案**：阴影偏移（shadow bias）
+   根据对阴影贴图应用一个**根据物体表面朝向和光线的角度**变化的偏移量
+
+   ![](./images/shadow_acne_bias.png)
+
+   这样会带来一个问题 —— 悬浮
+
+   ![](./images/shadow_peter_panning.png)
+
+   解决悬浮的一种方法：通过在生成阴影深度贴图时采用正面剔除的方式，只保留实体物体阴影深度，地板的深度会去掉
+
+
+
+## 2. 点光源阴影 Point Shadows
+
+点光阴影，过去的名字是万向阴影贴图（omnidirectional shadow maps）技术
+
+方法：
+
+1. 渲染深度**立方体**贴图
+2. 渲染场景
+
+![](./images/shadow_point.png)
+
+
+
+
 
 ## 3. 透明物体的阴影
+
+
+
+
+
+## 4. SSAO
 
 
 
@@ -235,6 +454,13 @@ Blinn-Phong 较 Phong 具有更真实的光照效果
 
 # 引用
 
-- [高级光照]([https://learnopengl-cn.github.io/05%20Advanced%20Lighting/01%20Advanced%20Lighting/](https://learnopengl-cn.github.io/05 Advanced Lighting/01 Advanced Lighting/))
-- [投光物](https://learnopengl-cn.github.io/02%20Lighting/05%20Light%20casters/)
+- [learnopengl-Lighting Advanced](https://learnopengl-cn.github.io/05 Advanced Lighting/01 Advanced Lighting/)
+- [learnopengl-Light casters](https://learnopengl-cn.github.io/02%20Lighting/05%20Light%20casters/)
+- [learnopengl-Deferred Shading](https://learnopengl-cn.github.io/05 Advanced Lighting/08 Deferred Shading/)
+- [learnopengl-ShadowMapping](https://learnopengl-cn.github.io/05 Advanced Lighting/03 Shadows/01 Shadow Mapping/)
+- [learnopengl-Point Shadows](https://learnopengl-cn.github.io/05 Advanced Lighting/03 Shadows/02 Point Shadows/)
+- [learnopengl-SSAO](https://learnopengl-cn.github.io/05 Advanced Lighting/09 SSAO/)
+- [Everything has Fresnel](http://filmicworlds.com/blog/everything-has-fresnel/)
+- [Unity_Shaders_Book](https://github.com/candycat1992/Unity_Shaders_Book)
+- [实时渲染中常用的几种 Rendering Path](https://www.cnblogs.com/polobymulberry/p/5126892.html)
 

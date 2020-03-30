@@ -330,27 +330,82 @@ glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 异向程度);
 
 # 三、高级纹理
 
-## 1. 立方体纹理
+## 1. 立方体纹理 Cube Map
+
+立方体贴图
+
+- 包含了 6 个 2D 纹理的纹理，每个 2D 纹理都组成了立方体的一个面，它通过一个方向向量来进行采样
+  （方向向量的大小并不重要，只要提供了方向）
+
+- 纹理坐标：处于世界坐标系下，是一个由立方体中心出发指向立方体面的三维向量
+
+  ![](./images/texture_cube_map.png)
 
 
 
+### 1.1 天空盒 Skybox
+
+天空盒：包含了整个场景的（大）立方体，它包含周围环境的 6 个图像，让玩家以为他处在一个比实际大得多的环境当中
+
+- 天空盒会跟随相机移动，从而让人认为天空盒的图像在无法到达的远方
+- 使用提前深度测试将天空盒最后渲染以节省带宽
+- 纹理环绕方式：超出采样部分取边界
+- 通过将输出位置的 z 分量等于它的 w 分量，让 z 分量永远等于 1.0，使 z 在透视除法时，深度始终是最大的 1
 
 
-## 2. 渲染纹理
+
+### 1.2 环境映射 Environment Mapping
+
+环境映射：通过使用环境的立方体贴图（不仅仅是天空盒）我们可以给物体反射和折射的属性
+
+动态环境贴图：通过帧缓冲，为物体的 6 个角度创建出场景纹理，并在每个渲染迭代中将它们储存到一个立方体贴图中。之后可以使用这个（动态生成的）立方体贴图来创建出更真实的，包含其它物体的，反射和折射表面了
+
+**反射**：通过物体表面单位法线，观察方向来计算反射方向作为立方体贴图的纹理坐标
+
+![](./images/texture_reflection.png)
 
 
+
+**折射**：通过物体表面单位法线，观察方向，以及两个材质之间的折射率（Refractive Index）来求出折射方向，其中 OpenGL 输入的折射率 = $出发材质（空气）的折射率 \over 进入材质（水）的折射率$
+
+折射法则通过 [斯涅尔定律 Snell's Law](https://en.wikipedia.org/wiki/Snell%27s_law) 来描述，其中 $\eta$ 为材质的折射率
+
+$$
+\eta_{入射角} \sin \theta_{入射角} = \eta_{出射角}  \sin \theta_{折射角}
+$$
+
+![](./images/texture_refraction.png)
+
+
+
+## 2. 渲染目标纹理 RTT
+
+渲染目标纹理（Render Target Texture）把整个三维场景渲染到中间缓冲中，而不是传统的帧缓冲或者后备缓冲（back buffer），与之相关的是多重渲染目标（Multiple Render Target，MRT）
+
+
+
+应用：
+
+- 场景中的镜子
+- 场景中的透明玻璃
 
 
 
 ## 3. 程序纹理
 
-### 3.1 规则的程序纹理
+程序纹理：由计算机生成的纹理，可以使用各种颜色以外参数来控制纹理的外观
 
 
 
-### 3.2 噪声纹理
+### 3.1 Perlin 噪声纹理
 
 
+
+
+
+### 3.2 Worley 噪声纹理
+
+常用于模拟多孔噪声，如：石头、水、纸张
 
 
 
@@ -361,8 +416,10 @@ glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 异向程度);
 1. [Render To Texture](http://www.paulsprojects.net/opengl/rtotex/rtotex.html)
 2. [learnopengl-基础光照](https://learnopengl-cn.github.io/02 Lighting/02 Basic Lighting/)
 3. [learnopengl-法线贴图](https://learnopengl-cn.github.io/05%20Advanced%20Lighting/04%20Normal%20Mapping/)
-4. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
-5. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
+4. [learnopengl-立方体贴图](https://learnopengl-cn.github.io/04 Advanced OpenGL/06 Cubemaps/#_7)
+5. [Understanding Perlin Noise](https://flafla2.github.io/2014/08/09/perlinnoise.html)
+6. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
+7. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
 
 
 
