@@ -196,9 +196,18 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
 
 **屏幕坐标和像素的映射关系**
 
-- 屏幕坐标表示的是屏幕空间中的像素坐标
-
 - 屏幕坐标是 2D 纹理坐标
+  归一化后的裁剪坐标转换到屏幕坐标的矩阵
+  $$
+  \begin{bmatrix}
+  {width \over 2} & 0 & 0 & {width \over 2} \\
+  0 & {height \over 2} & 0 & {height \over 2} \\
+  0 & 0 & 1 & 0 \\
+  0 & 0 & 0 & 1
+  \end{bmatrix}
+  $$
+
+- 屏幕坐标表示的是屏幕空间中的像素坐标
 
 - OpenGL 和 DirectX 10 以后的版本认为 像素中心 对应 屏幕坐标的值为 0.5，例：
   屏幕分辨率为 400 X 300，则其屏幕坐标 x 的范围是 [0.5, 400.5]，y 的范围是 [0.5, 300.5]
@@ -287,3 +296,4 @@ NVIDIA 的 CG（C for Graphic）
 4. [Android 的 16ms 和垂直同步以及三重缓存](https://www.jianshu.com/p/3750db831aca)
 6. [GLSL Versions](https://github.com/mattdesl/lwjgl-basics/wiki/glsl-versions)
 6. [learnopengl-Blending](https://learnopengl-cn.github.io/04 Advanced OpenGL/03 Blending/)
+7. [TriangleRasterization](http://www.sunshine2k.de/coding/java/TriangleRasterization/TriangleRasterization.html#algo2)

@@ -173,6 +173,8 @@ Blinn-Phong 较 Phong 具有更真实的光照效果
 
 菲涅耳反射：观察方向和物体表面法线的夹角越大，反射效果越明显
 
+应用：菲涅耳反射计算的强度系数 * 噪声纹理 **可以表现出水波的效果**
+
 近似公式，其中 $v$ 表示视角方向，$n$ 表示物体表面法线
 
 - Schlick 菲涅耳近似公式 $F_{schlick}(v,n) = F_0 + (1-F_0)(1-v \cdot n)^5$
@@ -180,6 +182,8 @@ Blinn-Phong 较 Phong 具有更真实的光照效果
   其中 bias，scale，power 是控制项
 
 ![](./images/light_fresenel_reflection.png)
+
+
 
 
 
@@ -444,7 +448,13 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 
 
 
-## 4. SSAO
+
+
+## 4. 屏幕空间的环境光遮挡 SSAO
+
+屏幕空间的环境光遮挡 （Screen Space Ambient Occlusion，SSAO）
+
+
 
 
 

@@ -391,13 +391,98 @@ $$
 
 
 
+
+
 ## 3. 程序纹理
 
 程序纹理：由计算机生成的纹理，可以使用各种颜色以外参数来控制纹理的外观
 
-
-
 ### 3.1 Perlin 噪声纹理
+
+常用于模拟水波纹，火和地形，生成二维 Perlin 噪声纹理的过程如下：
+
+1. 晶格划分
+   将二维空间划分为多个大小相等的晶格（矩形）例：1024px * 1024px 的噪声图，可以选择 64px 为晶格尺寸
+   
+   ```glsl
+   p0 = floor(pos / size) * size;
+   p1 = p0 + float2(1, 0) * size;
+   p2 = p0 + float2(0, 1) * size;
+   p3 = p0 + float2(1, 1) * size;
+   
+   posInGrid = (pos - p0) / size;
+   ```
+   
+   ![](./images/texture_noise_lattice.png)
+   
+2. 伪随机梯度生成
+   根据晶格的位置 P 与随机种子，对晶格的每个顶点生成一个伪随机梯度，表示为一个二维向量
+经过**随机函数 gold_noise** 生成的随机的 x, y 后再归一化，最后用 grad 表
+
+  ```glsl
+  #define PHI (1.61803398874989484820459 * 00000.1)
+  #define PI (3.14159265358979323846264 * 00000.1)
+  #define SQ2 (1.41421356237309504880169 * 10000.0)
+
+  float gold_noise(float2 pos, float seed) {
+    return frac(tan(distance(pos * (PHI + seed), float2(PHI, PI))) * SQ2) * 2 - 1;
+  }
+  ```
+
+![](./images/texture_noise_lattice1.png)
+
+3. 晶格内插值
+   计算当前点 P 相对于晶格四个顶点的偏移量 delta
+
+   ![](./images/texture_noise_lattice2.png)
+
+   对 delta 和 伪随机梯度得到的 grad 进行点积得到 v，最后将四个顶点的 v 值插值为一个数值
+   得到 Perlin 噪声的**最终值（范围 -1, 1）**
+
+   插值系数的计算一般为：$k = 6t^5 - 15t^4 + 10t^3$ 或 $k = 3t^2 - 2t^3$
+
+   ```glsl
+   float smoothLerp(float a, float b, float t) {
+       float k = pow(t, 5) * 6 - pow(t, 4) * 15 + pow(t, 3) * 10;
+       return (1 - k) * a + k * b
+   }
+   
+   v0 = dot(delta0, grad0);
+   v1 = dot(delta1, grad1);
+   v2 = dot(delta2, grad2);
+   v3 = dot(delta3, grad3);
+   
+   // Lerp with x
+   a = smoothLerp(v0, v1, posInGrid.x);
+   b = smoothLerp(v2, v3, posInGrid.x);
+   
+   // Lerp with y
+   return smoothLerp(a, b, posInGrid.y);
+   ```
+
+4. 分型噪声图
+
+   仅通过晶格化随机梯度生成的二维噪声图难以模拟自然界中的噪声现象
+   即便是缩小晶格尺寸，也只能徒增噪声图的 "颗粒感"
+   需要通过：将多种不同晶格尺寸的噪声图**叠加**得到自相似的分形噪声图
+
+   ```glsl
+   // 噪声图的叠加过程也可以描述成一个 分形布朗运动（FBM）函数
+   inline float fbm(float2 pos) {
+       float value = 0;
+       float amplitude = 0.5;
+   
+       for(int i = 0; i < _Iteration; i++) {
+           // 由于 noise_function 返回值的范围在 -1 ~ 1，取绝对值后，可用于地形的生成
+           // value += amplitude * abs(noise_function(pos));
+           value += amplitude * noise_function(pos);
+           pos *= 2;
+           amplitude *= .5;
+       }
+     
+       return value;
+   }
+   ```
 
 
 
@@ -418,8 +503,13 @@ $$
 3. [learnopengl-法线贴图](https://learnopengl-cn.github.io/05%20Advanced%20Lighting/04%20Normal%20Mapping/)
 4. [learnopengl-立方体贴图](https://learnopengl-cn.github.io/04 Advanced OpenGL/06 Cubemaps/#_7)
 5. [Understanding Perlin Noise](https://flafla2.github.io/2014/08/09/perlinnoise.html)
-6. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
-7. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
+6. [基于 ComputeShader 生成 Perlin Noise 噪声图](https://zhuanlan.zhihu.com/p/88518193)
+7. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
+8. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
+
+
+
+
 
 
 
@@ -432,3 +522,4 @@ Tessellation（曲面细分，可选阶段）：
 - Tessellation Control Shader（TCS，细分控制着色器）
 - Tessellation Primitive Generation（细分图元生成）
 - Tessellation Evaluation Shader（TES，细分求值着色器）
+
