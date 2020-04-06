@@ -20,12 +20,12 @@
 
 光线与物体相交产生吸收和散射现象
 
-散射（absorption）：只改变光的方向，不改变光的密度和颜色
+散射（scattering）：只改变光的方向，不改变光的密度和颜色
 
 - 反射（reflection）：光散射到物体外部 [ 形成 **高光反射** specular ]
 - 折射（refraction）/ 透射（transmission）：光散射到与其相交物体的内部
   折射后的光线会继续在物体内部散射，最终 [ 形成 **漫反射**  diffuse ]
-  1. 一部分光线被物体吸收（scattering）
+  1. 一部分光线被物体吸收（absorption）
   2. 一部分光线从物体表面被发射出去（这些光线和入射光线有不通的方向分布和颜色）
 
 
@@ -74,7 +74,7 @@ Phong \space 光照模型 = 环境光 + 自发光 + 漫反射 + 高光反射
 $$
 
 - **环境光 Ambient**：间接光照（indirect light）经过多个物体之间反射的光照
-  是一个全局光照，同一个场景中的所有物体都使用同样的环境光
+  是一个全局光照，同一个场景中的所有物体都使用同样的环境光（一般为常量）
 
 - **自发光 Emissive**：直接由光源发射的光照，一般为材质的颜色
   实时渲染中自发光不会作为光源来照亮其他物体
@@ -427,7 +427,15 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 
 
 
-## 2. 点光源阴影 Point Shadows
+## 2. 级联式纹理映射 Cascaded Shadow Map（CSM）
+
+
+
+
+
+
+
+## 3. 点光源阴影 Point Shadows
 
 点光阴影，过去的名字是万向阴影贴图（omnidirectional shadow maps）技术
 
@@ -442,7 +450,7 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 
 
 
-## 3. 透明物体的阴影
+## 4. 透明物体的阴影
 
 
 
@@ -450,13 +458,30 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 
 
 
-## 4. 屏幕空间的环境光遮挡 SSAO
+## 5. 屏幕空间的环境光遮挡 SSAO
 
-屏幕空间的环境光遮挡 （Screen Space Ambient Occlusion，SSAO）
+屏幕空间的环境光遮挡 （Screen Space Ambient Occlusion，SSAO）通过将褶皱、孔洞和非常靠近的墙面变暗的方法近似模拟出间接光照（如，下图）
 
+![](./images/light_ssao.png)
 
+方法：在三维物体已经生成二维图片之后计算遮蔽因子
 
-
+1. 几何阶段：渲染当前相机范围的 顶点、法线、深度 到 G-Buffer（Geometry Buffer）
+   注意：纹理采样使用 clamp_to_edge 方法，防止采样到在屏幕空间中纹理默认坐标区域之外的深度值
+2. 光照处理阶段：计算遮蔽因子
+   1. 计算法向半球采样位置
+      在切线空间内，距离每个顶点一定范围内（半球形范围，法向量 0.0 ~ 1.0）随机取固定数量的像素值
+      一般会将采样点靠近原点（每个顶点）分布
+   2. 创建随机核心转动噪声纹理
+      创建一个小的随机旋转向量纹理(4X4)平铺在屏幕上（对场景中每一个片段创建一个随机旋转向量，会占用大量内存）
+   3. 检测深度范围
+      检测深度如果在法向半球采样半径内，则被保留，作为影响遮蔽因子的因素
+   4. 比较深度
+      法向半球检测的采样深度如果大于观察视角的深度，则作为影响遮蔽因子的因素
+   5. 模糊环境遮蔽结果
+      重复的噪声纹理再上一步的图中清晰可见，为了创建一个光滑的环境遮蔽结果，需要用 box bluer 来模糊环境遮蔽纹理
+   6. 应用在光照计算中
+      光照模型中的环境光 = 原来的环境光常量 * 遮蔽因子（环境遮蔽纹理中）
 
 
 
@@ -473,4 +498,6 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 - [Everything has Fresnel](http://filmicworlds.com/blog/everything-has-fresnel/)
 - [Unity_Shaders_Book](https://github.com/candycat1992/Unity_Shaders_Book)
 - [实时渲染中常用的几种 Rendering Path](https://www.cnblogs.com/polobymulberry/p/5126892.html)
+- [OGL-Cascaded Shadow Mapping](http://ogldev.atspace.co.uk/www/tutorial49/tutorial49.html)
+- [MSDN-Cascaded Shadow Maps](https://docs.microsoft.com/zh-cn/windows/win32/dxtecharts/cascaded-shadow-maps?redirectedfrom=MSDN)
 

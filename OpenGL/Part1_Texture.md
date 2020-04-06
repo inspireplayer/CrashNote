@@ -509,17 +509,3 @@ $$
 
 
 
-
-
-
-
-# 草稿、Tessellation 曲面细分
-
-Tessellation（曲面细分，可选阶段）：
-当 Tessellation 阶段存在时，只能给管线提供 GL_PATCHES 类型的图元
-当 Tessellation 阶段不存在时，不能提供 GL_PATCHES 类型的图元
-
-- Tessellation Control Shader（TCS，细分控制着色器）
-- Tessellation Primitive Generation（细分图元生成）
-- Tessellation Evaluation Shader（TES，细分求值着色器）
-

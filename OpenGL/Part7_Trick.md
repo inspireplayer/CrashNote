@@ -2,17 +2,21 @@
 
 # 一、碰撞检测
 
-
-
-
-
-# 二、拾取
+## 1. AABB 与 AABB 碰撞
 
 
 
 
 
-# 三、后处理特效
+## 2. AABB 与 圆碰撞
+
+
+
+
+
+
+
+# 二、后处理特效
 
 
 ## 1. HDR
@@ -105,7 +109,7 @@ HDR 原本只是被运用在摄影上，摄影师对同一个场景采取不同�
 
 
 
-# 四、其他
+# 三、其他
 
 ## 1. 描边
 
@@ -138,6 +142,20 @@ HDR 原本只是被运用在摄影上，摄影师对同一个场景采取不同�
 
 
 
+## 2. 粒子系统
+
+
+
+
+
+## 3. 3D 拾取
+
+
+
+
+
+
+
 # 引用
 
 - [3D Picking](http://ogldev.atspace.co.uk/www/tutorial29/tutorial29.html)
@@ -145,3 +163,4 @@ HDR 原本只是被运用在摄影上，摄影师对同一个场景采取不同�
 - [learnopengl-HDR](https://learnopengl-cn.github.io/05 Advanced Lighting/06 HDR/)
 - [learnopengl-AntiAliasing](https://learnopengl-cn.github.io/04 Advanced OpenGL/11 Anti Aliasing/)
 - [HDR Tone Mapping](https://zhuanlan.zhihu.com/p/26254959)
+- [OGL-Particle System using Transform Feedback](http://ogldev.atspace.co.uk/www/tutorial28/tutorial28.html)
