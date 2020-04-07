@@ -2,15 +2,62 @@
 
 # 一、碰撞检测
 
-## 1. AABB 与 AABB 碰撞
+一般出于性能的考虑，使用**重叠**在物体上的更简单的外形（通常有较简单明确的数学定义）来进行碰撞检测是常用碰撞检测的方法
+
+缺点：这些外形通常无法完全包裹物体，当检测到碰撞时，实际的物体可能并没有真正的碰撞
+
+
+
+## 1. Axis-Aligned Bounding Box
+
+轴对齐碰撞箱（Axis-Aligned Bounding Box）
+
+- 碰撞箱为 矩形/立方体，它的边与所包围物体的**世界坐标系对齐**（为了便于计算碰撞箱）
+
+- 不会随所包装物体的旋转而旋转，只会**随所包装物体的旋转而缩放**
+- 表示方法有很多，通常用两个坐标系各轴都是模型中的点 最大/最小 的点来表示
+  描述 AABB 的几何结构为：碰撞箱的中心点 + 碰撞箱子各个坐标轴的半径（为了方便碰撞检测）
 
 
 
 
 
-## 2. AABB 与 圆碰撞
+## 2. AABB 与 AABB 碰撞
+
+通过：两个物体的 AABB 碰撞箱的 **水平** 和 **垂直** 边界是否重合 来判断
 
 
+
+
+
+## 3. AABB 与 圆碰撞
+
+通过：找到 AABB 上距离圆最近的一个点，如果圆到这一点的距离小于圆的半径，那么就产生了碰撞
+
+![](./images/collisions_aabb_circle.png)
+
+```c
+GLboolean CheckCollision(BallObject &circle, GameObject &aabb_box)
+{
+    // 获取圆的中心 
+    glm::vec2 circle_center(circle.Position + circle.Radius);
+    // 计算AABB的信息（中心、半边长）
+    glm::vec2 aabb_half_extents(aabb_box.Size.x / 2, aabb_box.Size.y / 2);
+    glm::vec2 aabb_center(
+        aabb_box.Position.x + aabb_half_extents.x, 
+        aabb_box.Position.y + aabb_half_extents.y
+    );
+    // 获取两个中心的差矢量
+    glm::vec2 difference = circle_center - aabb_center;
+    glm::vec2 clamped = glm::clamp(difference, -aabb_half_extents, aabb_half_extents);
+    // AABB_center 加上 clamped 这样就得到了碰撞箱上距离圆最近的点closest
+    glm::vec2 p = aabb_center + clamped;
+    // 获得圆心 C 和最近点 P 的矢量
+    difference = p - circle_center;
+  	// 判断 p 是否在圆内
+    return glm::length(difference) < circle.Radius;
+}
+```
 
 
 
@@ -164,3 +211,6 @@ HDR 原本只是被运用在摄影上，摄影师对同一个场景采取不同�
 - [learnopengl-AntiAliasing](https://learnopengl-cn.github.io/04 Advanced OpenGL/11 Anti Aliasing/)
 - [HDR Tone Mapping](https://zhuanlan.zhihu.com/p/26254959)
 - [OGL-Particle System using Transform Feedback](http://ogldev.atspace.co.uk/www/tutorial28/tutorial28.html)
+- [Open Dynamics Engine](http://www.ode.org)
+- [Open Dynamics Engine Doc](http://ode.org/ode-latest-userguide.html)
+
