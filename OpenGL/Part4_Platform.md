@@ -364,9 +364,12 @@ int main(int argc, char ** argv)
 
 ## 5. Debug
 
-1. [系统自带的 GPU 呈现分析](https://www.cnblogs.com/ldq2016/p/6667381.html)
+1. [系统自带的 GPU 呈现分析](https://zhuanlan.zhihu.com/p/22334175)
 2. [高通骁龙 Adreno GPU Profiler 调试工具（建议在 windows 下使用，mac 下测试无用）](https://gameinstitute.qq.com/community/detail/123051)
 3. [GAPID 调试 Android 应用，需要 Android stuido 停用 adb 的使用](http://www.geeks3d.com/20171214/google-gapid-capture-vulkan-and-opengl-es-calls-on-android-windows-macos-and-linux/)
+4. 部分 vivo 手机会出现安装 app 失败的问题，需要在 Android Studio 设置里的 Build > Instant Run > disable Instant Run
+
+
 
 
 
@@ -484,7 +487,8 @@ if ([EAGLContext currentContext] != firstContext) {
 ## 5. Debug
 
 1. [使用Xcode GPU Frame Caputre教程](https://www.cnblogs.com/TracePlus/p/4093830.html)
-2. 部分 vivo 手机会出现安装 app 失败的问题，需要在 Android Studio 设置里的 Build > Instant Run > disable Instant Run
+
+
 
 
 

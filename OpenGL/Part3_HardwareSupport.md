@@ -189,3 +189,5 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
 1. [移动 GPU 渲染模式](https://blog.csdn.net/u013467442/article/details/40684479)
 2. [针对移动端 TBDR 架构 GPU 特性的渲染优化](https://blog.csdn.net/leonwei/article/details/79298381)
 3. [GPU架构图](https://blog.csdn.net/pizi0475/article/details/7573996)
+4. [渲染优化-从GPU的结构谈起](https://zhuanlan.zhihu.com/p/58694744)
+

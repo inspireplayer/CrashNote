@@ -10,7 +10,7 @@
 
 
 
-##1. OpenGL 状态机
+## 1. OpenGL 状态机
 
 由于 OpenGL 内部是一个类似于全局变量的状态机
 
@@ -21,7 +21,7 @@
 
 
 
-##2. OpenGL Context
+## 2. OpenGL Context
 
 OpenGL 命令执行的结果影响 OpenGL 状态（由 OpenGL context 保存，包括OpenGL 数据缓存）或 影响帧缓存
 
