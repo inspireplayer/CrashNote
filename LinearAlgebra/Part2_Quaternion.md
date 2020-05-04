@@ -638,6 +638,17 @@ sin{H \over 2}sin{P \over 2}cos{R \over 2}-cos{H \over 2}cos{P \over 2}sin{R \ov
 $$
 ![](images/rollPichYaw.png)
 
+## 5. SQT 变换
+
+> 四元数只能表示旋转，但是 4 X 4 的矩阵却可以表示旋转、平移、缩放
+
+SQT 变换矩阵：四元数、平移向量、缩放向量/缩放统一系数 构成的一个 4 X 3 的矩阵
+
+使用 SQT 矩阵的目的：便于对 旋转、平移、缩放 的插值计算
+
+
+
+
 
 # 引用
 
