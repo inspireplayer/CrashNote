@@ -180,56 +180,110 @@ EGL 可以创建本地环境的资源（各种 surface 类型）格式有
 #include <unistd.h>
 #include <EGL/egl.h>
 #include <GLES/gl.h>
+
 typedef ... NativeWindowType;
 extern NativeWindowType createNativeWindow(void);
 
 // 虽然是一维数组，但还是要采用 id, value, id, value ... 的存储方式
-static EGLint const attribute_list[] = {
-        EGL_RED_SIZE, 1,
-        EGL_GREEN_SIZE, 1,
-        EGL_BLUE_SIZE, 1,
-        EGL_NONE
+const EGLint attribute_list[] =
+{
+    EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT_KHR,
+  	//EGL_WINDOW_BIT EGL_PBUFFER_BIT we will create a pixelbuffer surface
+    EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+    EGL_RED_SIZE,   	8,
+    EGL_GREEN_SIZE, 	8,
+    EGL_BLUE_SIZE,    8,
+    EGL_ALPHA_SIZE,   8, // if you need the alpha channel
+    EGL_DEPTH_SIZE,   8, // if you need the depth buffer
+    EGL_STENCIL_SIZE, 8,
+    EGL_NONE
 };
+
+// EGL context attributes
+const EGLint ctxAttr[] = {
+    EGL_CONTEXT_CLIENT_VERSION, 2,
+    EGL_NONE
+};
+
+void createGLESEnv()
+{
+    EGLint num_config;
+    EGLint numConfigs;
+    EGLint eglMajVers;
+    EGLint eglMinVers;
+  
+    EGLConfig config;
+    EGLDisplay m_eglDisplay;	// 关联系统物理屏幕，表示显示设备句柄
+    EGLContext m_eglContext;
+    EGLSurface m_eglSurface;
+    NativeWindowType native_window;
+
+    // 1. get an EGL display connection
+    m_eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if(EGL_NO_DISPLAY == m_eglDisplay) {
+      Log.e("ERROR: get an EGL display connection");
+    }
+
+    // 2. initialize the EGL display connection
+    if (!eglInitialize(m_eglDisplay, &eglMajVers, &eglMinVers)) {
+			Log.e("ERROR: initialize the EGL display connection");
+    }
+
+    // 3. get an appropriate EGL frame buffer configuration
+    if(!eglChooseConfig(m_eglDisplay, attribute_list, &config, 1, &num_config)) {
+      Log.e("ERROR: get an appropriate EGL frame buffer configuration");
+    }
+
+    // 4. create an EGL rendering context
+    m_eglContext = eglCreateContext(m_eglDisplay, config, EGL_NO_CONTEXT, ctxAttr);	
+  	if (EGL_NO_CONTEXT == m_eglContext) {
+      EGLint error = eglGetError();
+      if(error == EGL_BAD_CONFIG) {
+        Log.e("ERROR: create an EGL rendering context");
+      }
+		}
+
+    // 5. create a native window
+    native_window = createNativeWindow();
+
+    // 6. create an EGL window surface
+    m_eglSurface = eglCreateWindowSurface(m_eglDisplay, config, native_window, NULL);
+
+    // 7. connect the context to the surface
+    if (!eglMakeCurrent(m_eglDisplay, m_eglSurface, m_eglSurface, m_eglContext)) {
+			Log.e("ERROR: connect the context to the surface");
+    }
+}
+
+void destroyGlESEnv()
+{
+    if (m_eglDisplay != EGL_NO_DISPLAY) {
+        eglMakeCurrent(m_eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroyContext(m_eglDisplay, m_eglContext);
+        eglDestroySurface(m_eglDisplay, m_eglSurface);
+        eglReleaseThread();
+        eglTerminate(m_eglDisplay);
+    }
+
+    m_eglDisplay = EGL_NO_DISPLAY;
+    m_eglSurface = EGL_NO_SURFACE;
+    m_eglContext = EGL_NO_CONTEXT;
+}
+
 int main(int argc, char ** argv)
 {
-        EGLDisplay display;	//EGLDisplay：关联系统物理屏幕，表示显示设备句柄
-        EGLConfig config;
-        EGLContext context;
-        EGLSurface surface;
-        NativeWindowType native_window;
-        EGLint num_config;
+    createGLESEnv();
 
-        /* 1. get an EGL display connection */
-        display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    glClearColor(1.0, 1.0, 0.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFlush();
 
-        /* 2. initialize the EGL display connection */
-        eglInitialize(display, NULL, NULL);
+    // 所有的绘制步骤在后台绘制，当绘制完成时切换前后台缓冲，确保显示的一直是绘制完成的画面
+    eglSwapBuffers(m_eglDisplay, m_eglSurface);
+  
+  	destroyGlESEnv();
 
-        /* 3. get an appropriate EGL frame buffer configuration */
-        eglChooseConfig(display, attribute_list, &config, 1, &num_config);
-
-        /* 4. create an EGL rendering context */
-        context = eglCreateContext(display, config, EGL_NO_CONTEXT, NULL);
-
-        /* 5. create a native window */
-        native_window = createNativeWindow();
-
-        /* 6. create an EGL window surface */
-        surface = eglCreateWindowSurface(display, config, native_window, NULL);
-
-        /* 7. connect the context to the surface */
-        eglMakeCurrent(display, surface, surface, context);
-
-        /* 8. clear the color buffer */
-        glClearColor(1.0, 1.0, 0.0, 1.0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glFlush();
-
-  			// 所有的绘制步骤在后台绘制，当绘制完成时切换前后台缓冲，确保显示的一直是绘制完成的画面
-        eglSwapBuffers(display, surface);
-
-        sleep(10);
-        return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
 }
 ```
 
@@ -237,7 +291,7 @@ int main(int argc, char ** argv)
 
 ## 4. 平台问题
 
-###4.1 TEXTURE_EXTERNAL_OES
+### 4.1 TEXTURE_EXTERNAL_OES
 
 [TEXTURE_EXTERNAL_OES](https://www.khronos.org/registry/OpenGL/extensions/OES/OES_EGL_image_external.txt) 是 OpenGL ES 在 Android 上的扩展，在获取相机纹理时只有 TEXTURE_EXTERNAL_OES 类型的纹理
 
@@ -265,7 +319,7 @@ int main(int argc, char ** argv)
 
    
 
-###4.2 Java 成员变量和 C++ 指针的 JNI 层绑定
+### 4.2 Java 成员变量和 C++ 指针的 JNI 层绑定
 
 绑定指针
 
@@ -465,6 +519,8 @@ layer.drawableProperties = @{
 EAGLContext *firstContext = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
 
 // 2. 使用共享上下文
+//    把新建的上下文放到已有上下文的 EAGLSharegroup 中来确保 EAGLSharegroup 中的上下文进行资源共享
+// 注：EAGLSharegroup 为不透明类，只读，不可自行创建和修改
 EAGLContext* secondContext = [[EAGLContext alloc] initWithAPI:[firstContext API] 
                                                    sharegroup:[firstContext sharegroup]];
 
@@ -682,6 +738,7 @@ GLenum glCheckError_(const char *file, int line, QAbstractOpenGLFunctions* obj) 
 # 参考
 
 - [A C++ Smart Pointer wrapper for use with JNI](https://www.studiofuga.com/2017/03/10/a-c-smart-pointer-wrapper-for-use-with-jni/)
+- [Android Graphics 官方文档](https://source.android.com/devices/graphics)
 - [Android中的 EGL 扩展](http://ju.outofmemory.cn/entry/146313)
 - [SurfaceView、SurfaceHolder、Surface](https://blog.csdn.net/holmofy/article/details/66578852)
 - [TextureView、SurfaceTexture、Surface](https://blog.csdn.net/Holmofy/article/details/66583879)
