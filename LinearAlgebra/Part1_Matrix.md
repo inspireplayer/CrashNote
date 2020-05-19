@@ -134,12 +134,12 @@ $$
 
 **齐次坐标区分点和向量**：
 
-设基坐标为 (x, y, z)，原点为 O，则**点比向量需要额外的信息**
+I. 设基坐标为 (x, y, z)，原点为 O，则**点比向量需要额外的信息**
 
 - 向量 $\vec V(v_1, v_2, v_3) = v_1x + v_2y + v_3z$
 - 点 $P(p_1, p_2, p_3) - O = p_1x + p_2y + p_3z \rightarrow P(p_1, p_2, p_3) = p_1x + p_2y + p_3z + O$
 
-在齐次坐标 (x, y, z, w) 中，w = 0 代表无穷远，即一个方向
+II. 在齐次坐标 (x, y, z, w) 中，w = 0 代表无穷远，即一个方向
 - 非齐次坐标 转 齐次坐标
   点     (x, y, z) 转为 (x, y, z, 1)
   向量 (x, y, z) 转为 (x, y, z, 0)
@@ -147,6 +147,10 @@ $$
 - 齐次坐标 转 非齐次坐标
   (x, y, z, 1) 转为 点     (x, y, z)
   (x, y, z, 0) 转为 向量 (x, y, z)
+
+III. 应用：深度缓冲
+
+
 
 
 
@@ -711,4 +715,5 @@ $$
 - [齐次坐标的说明](https://blog.csdn.net/business122/article/details/51916858)
 - [齐次坐标的理解](http://www.cnblogs.com/csyisong/archive/2008/12/09/1351372.html)
 - [投影矩阵的推导](http://www.songho.ca/opengl/gl_projectionmatrix.html)
+- [Depth Precision Visualized](https://developer.nvidia.com/content/depth-precision-visualized)
 

@@ -297,3 +297,5 @@ NVIDIA 的 CG（C for Graphic）
 6. [GLSL Versions](https://github.com/mattdesl/lwjgl-basics/wiki/glsl-versions)
 6. [learnopengl-Blending](https://learnopengl-cn.github.io/04 Advanced OpenGL/03 Blending/)
 7. [TriangleRasterization](http://www.sunshine2k.de/coding/java/TriangleRasterization/TriangleRasterization.html#algo2)
+8. [Platform-specific rendering differences](https://docs.unity3d.com/Manual/SL-PlatformDifferences.html)
+
