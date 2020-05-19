@@ -70,7 +70,7 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  //放大
 
 
 
-### 2.1 最近点采样 GL_NEAREST
+### 2.1 邻近点采样 Nearest neighbor
 
 优点：效率最高
 缺点：效果最差
@@ -81,7 +81,7 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  //放大
 
 
 
-### 2.2 双线性过滤 GL_LINEAR
+### 2.2 双线性过滤 Bilinear
 
 优点：适于处理有一定精深的静态影像
 缺点：不适用于绘制动态的物体，当三维物体很小时会产生深度赝样锯齿 (Depth Aliasing artifacts)
@@ -92,7 +92,7 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  //放大
 
 
 
-### 2.3 三线性过滤 GL_LINEAR_MIPMAP_LINEAR
+### 2.3 三线性过滤 Trilinear
 
 > 多级渐远纹理 (Mipmap) 
 > 效率高但是会占用一定的空间
@@ -115,15 +115,15 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  //放大
 
 
 
-### 2.4 各向异性过滤
+### 2.4 各向异性过滤 Anisotropic
 
-> 之前提到的三种过滤方式，默认纹理在 x，y 轴方向上的缩放程度是一致的
-> 当纹理在 3D 场景中，出现一个轴的方向纹理放大，一个轴的方向纹理缩小的情况（**OpenGL 判定为纹理缩小**）需要使用各向异性过滤配合以上三种过滤方式来达到最佳的效果
+> 之前提到的三种过滤方式，默认纹理在 x，y 轴方向上的缩放程度是一致的（纹理表面刚好正对着摄像机）
+> 当纹理在 3D 场景中，纹理表面刚倾斜于虚拟屏幕平面时，出现一个轴的方向纹理放大，一个轴的方向纹理缩小的情况（**OpenGL 判定为纹理缩小**）需要使用各向异性过滤配合以上三种过滤方式来达到最佳的效果
 
 优点：效果最好，使画面更加逼真
 缺点：效率最低，由硬件实现
 
-方法：
+方法：根据视角对梯形范围内的纹理采样
 
 1. 确定 X、Y 方向的采样比例
    ScaleX = 纹理的宽 / 屏幕上显示的纹理的宽
@@ -195,7 +195,7 @@ glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 异向程度);
 
 ### 2.1 使用流程
 
-**1. CPU**
+**I. CPU**
 
    1. 由 模型变换 得到 法线的模型变换矩阵（逆矩阵耗时大，尽量放在 CPU 上算一次）
    2. 根据顶点位置和纹理坐标信息，计算**模型空间下的** 切线 和 副切线
@@ -203,15 +203,15 @@ glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 异向程度);
 
 
 
-**2. 顶点着色器**
+**II. 顶点着色器**
 
-  1. 将顶点数据中的 切线、副切线、法线坐标系位置经过 法线的模型变换矩阵 转换为
-    **世界空间下的** 切线空间坐标，归一化后构建 切线空间矩阵
-  2. 计算世界空间下的光源在 切线空间 的坐标
+1. 将顶点数据中的 切线、副切线、法线坐标系位置经过 法线的模型变换矩阵 转换为
+   **世界空间下的** 切线空间坐标，归一化后构建 切线空间矩阵
+2. 计算世界空间下的光源在 切线空间 的坐标
 
 
 
-**3. 片元着色器**
+**III. 片元着色器**
 
    1. 根据法线纹理对应的普通纹理的纹理坐标，从法线纹理读取切线空间下的法线数据（像素值）
    2. 将范围是 [0, 1] 的像素值，转换为范围是 [-1, 1] 的表面法线值：$normal = pixel*2.0 - 1.0$
@@ -419,15 +419,15 @@ $$
    根据晶格的位置 P 与随机种子，对晶格的每个顶点生成一个伪随机梯度，表示为一个二维向量
 经过**随机函数 gold_noise** 生成的随机的 x, y 后再归一化，最后用 grad 表
 
-  ```glsl
-  #define PHI (1.61803398874989484820459 * 00000.1)
-  #define PI (3.14159265358979323846264 * 00000.1)
-  #define SQ2 (1.41421356237309504880169 * 10000.0)
+   ```glsl
+   #define PHI (1.61803398874989484820459 * 00000.1)
+   #define PI (3.14159265358979323846264 * 00000.1)
+   #define SQ2 (1.41421356237309504880169 * 10000.0)
 
-  float gold_noise(float2 pos, float seed) {
-    return frac(tan(distance(pos * (PHI + seed), float2(PHI, PI))) * SQ2) * 2 - 1;
-  }
-  ```
+   float gold_noise(float2 pos, float seed) {
+     return frac(tan(distance(pos * (PHI + seed), float2(PHI, PI))) * SQ2) * 2 - 1;
+   }
+   ```
 
 ![](./images/texture_noise_lattice1.png)
 
