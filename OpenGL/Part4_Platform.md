@@ -10,6 +10,12 @@
 
 
 
+第三方跨平台框架
+
+- [Flutter外接纹理](https://zhuanlan.zhihu.com/p/42566807)
+
+
+
 # 一、Android 平台
 
 >图片有不清晰的地方，可以点开连接看大图
@@ -17,7 +23,7 @@
 ## 1. 数据的封装
 
 ### 1.1 Surface
-内存中的一段绘图缓冲区，对 framebuffer 的 Java 封装对象
+内存中的一段绘图缓冲区，是对 framebuffer 的 Java 封装对象
 
 
 
@@ -110,7 +116,7 @@ SurfaceTexture 使用流程
   @Override
   public void onSurfaceTextureUpdated(SurfaceTexture surface) {}
   ```
-  ![](./images/textureView.jpeg)
+  <img src="./images/textureView.jpeg"  />
 
 
 
@@ -738,14 +744,26 @@ GLenum glCheckError_(const char *file, int line, QAbstractOpenGLFunctions* obj) 
 # 参考
 
 - [A C++ Smart Pointer wrapper for use with JNI](https://www.studiofuga.com/2017/03/10/a-c-smart-pointer-wrapper-for-use-with-jni/)
+
 - [Android Graphics 官方文档](https://source.android.com/devices/graphics)
+
 - [Android中的 EGL 扩展](http://ju.outofmemory.cn/entry/146313)
+
 - [SurfaceView、SurfaceHolder、Surface](https://blog.csdn.net/holmofy/article/details/66578852)
+
 - [TextureView、SurfaceTexture、Surface](https://blog.csdn.net/Holmofy/article/details/66583879)
+
 - [SurfaceView、TextureView、SurfaceTexture 等的区别](https://www.cnblogs.com/wytiger/p/5693569.html)
+
 - [OpenGL ES：EGL 接口解析与理解](https://blog.csdn.net/xuwei072/article/details/70049004)
+
 - [OpenGL ES：EGL简介](https://blog.csdn.net/iEearth/article/details/71180457)
+
 - [Android中 的 GraphicBuffer 同步机制 Fence](https://blog.csdn.net/jinzhuojun/article/details/39698317)
+
 - [深入 Android 渲染机制](https://www.cnblogs.com/ldq2016/p/6668148.html)
+
+- [Android Deeper(01) - Graphic Architecture](http://hukai.me/android-deeper-graphics-architecture/)
+
 - [Apple OpenGL ES Programming Guide](https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/Introduction/Introduction.html?language=objc#//apple_ref/doc/uid/TP40008793)
 
