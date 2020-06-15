@@ -162,6 +162,8 @@ SurfaceTexture 使用流程
 
 ### 3.3 EGL 的 Context 和 Surface
 
+EGL 主要作用是将渲染绘制到本地窗口上
+
 EGL 可以销毁本地资源（各种 surface 类型）
 只有一个方法，[EGLBoolean eglDestroySurface(EGLDisplay display, EGLSurface surface);](https://www.khronos.org/registry/EGL/sdk/docs/man/html/eglDestroySurface.xhtml)
 
@@ -221,7 +223,7 @@ void createGLESEnv()
     EGLConfig config;
     EGLDisplay m_eglDisplay;	// 关联系统物理屏幕，表示显示设备句柄
     EGLContext m_eglContext;
-    EGLSurface m_eglSurface;
+    EGLSurface m_eglSurface;  // EGLSurface 和 Java 的 Surface 没有关系，是两个独立的对象
     NativeWindowType native_window;
 
     // 1. get an EGL display connection

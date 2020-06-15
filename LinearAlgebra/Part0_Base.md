@@ -372,7 +372,7 @@ $$
 
 ![](images/vectorProject.png)
 
-证明，公式一：$n \cdot v = |n|v_{在n上的投影}$ 
+证明，公式一：$n \cdot v = |v_{在n上的投影}|n$ 
 $$
 \begin{align}
 已知： 单位向量 = {n \over |n|} &= {v_{||} \over |v_{||}|}, \space 
@@ -384,8 +384,10 @@ v \space 到 \space n \space 的投影：v_{||}
 &= n{n \cdot v \over |n|^2}\\
 &= {n \over |n|}{n \cdot v \over |n|}\\
 v_{||} &= {n \cdot v \over |n|}\\
-若 \space n \space 是单位向量，则：v_{||} &= n \cdot v\\
-n \cdot v &= |n|v_{||}
+由于 \space n \space 是单位向量，且和 \space v_{||} \space 方向相同，则 \\
+v_{||} &= n \cdot v\\
+|v_{||}|n &= n \cdot v \\
+n \cdot v &= |v_{||}|n
 \end{align}
 $$
 
