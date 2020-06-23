@@ -746,26 +746,18 @@ GLenum glCheckError_(const char *file, int line, QAbstractOpenGLFunctions* obj) 
 # 参考
 
 - [A C++ Smart Pointer wrapper for use with JNI](https://www.studiofuga.com/2017/03/10/a-c-smart-pointer-wrapper-for-use-with-jni/)
-
 - [Android Graphics 官方文档](https://source.android.com/devices/graphics)
-
 - [Android中的 EGL 扩展](http://ju.outofmemory.cn/entry/146313)
-
 - [SurfaceView、SurfaceHolder、Surface](https://blog.csdn.net/holmofy/article/details/66578852)
-
 - [TextureView、SurfaceTexture、Surface](https://blog.csdn.net/Holmofy/article/details/66583879)
-
 - [SurfaceView、TextureView、SurfaceTexture 等的区别](https://www.cnblogs.com/wytiger/p/5693569.html)
-
 - [OpenGL ES：EGL 接口解析与理解](https://blog.csdn.net/xuwei072/article/details/70049004)
-
 - [OpenGL ES：EGL简介](https://blog.csdn.net/iEearth/article/details/71180457)
-
 - [Android中 的 GraphicBuffer 同步机制 Fence](https://blog.csdn.net/jinzhuojun/article/details/39698317)
-
 - [深入 Android 渲染机制](https://www.cnblogs.com/ldq2016/p/6668148.html)
-
 - [Android Deeper(01) - Graphic Architecture](http://hukai.me/android-deeper-graphics-architecture/)
-
 - [Apple OpenGL ES Programming Guide](https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/Introduction/Introduction.html?language=objc#//apple_ref/doc/uid/TP40008793)
+- [Android 相机开发中的尺寸和方向问题](https://glumes.com/post/android/android-camera-aspect-ratio--and-orientation/)
+- [Google 官方相机 Demo](https://github.com/google/cameraview)
+- [Android 音视频开发打怪升级](https://mp.weixin.qq.com/s/4Rn5Z54lu3O55c7MK3nNpg)
 
