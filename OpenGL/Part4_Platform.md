@@ -36,7 +36,11 @@
 
 特点：可以接收一个 EGL texture 的纹理 ID 来产生，可以做到**离线渲染**
 
-关键方法：updateTexImage（从内容流中获取当前帧，使得内容流中的一些帧可以跳过）
+关键方法：
+
+- updateTexImage（从内容流中获取当前帧，使得内容流中的一些帧可以跳过）
+
+- 通过 调用 getTransformMatrix 获取纹理的旋转情况
 
 ![](./images/surfaceTexture.png)
 
@@ -117,6 +121,7 @@ SurfaceTexture 使用流程
   public void onSurfaceTextureUpdated(SurfaceTexture surface) {}
   ```
   <img src="./images/textureView.jpeg"  />
+
 
 
 
