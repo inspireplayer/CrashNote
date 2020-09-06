@@ -12,6 +12,8 @@
 纹理映射坐标
 
 - 所有的纹理尺寸都会映射在 [0, 1] 的范围
+  顶点着色器使用的是 uv 纹理坐标（坐标值为原始图片大小的值）
+  片段着色器使用的是 st 纹理坐标（坐标值为归一化以后的值）
 - OpenGL、Unity 纹理坐标原点在 左下角
 - DirectX 纹理坐标原点在 左上角
 
@@ -92,30 +94,7 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  //放大
 
 
 
-### 2.3 三线性过滤 Trilinear
-
-> 多级渐远纹理 (Mipmap) 
-> 效率高但是会占用一定的空间
-> 一系列的纹理图像，后一个纹理图像是前一个的二分之一。距观察者的距离超过一定的阈值，OpenGL会使用不同的多级渐远纹理，即最适合物体的距离的那个。由于距离远，解析度不高也不会被用户注意到。
->
-> 一张方形地板的多级渐远纹理如下图
->
-> ![](images/mipmaps.png)
-
-优点：效果最好，适用于动态物体或景深很大的场景
-缺点：效率低，只能用于纹理被缩小的情况
-
-方法：
-
-1. 取 Mipmap 纹理中距离与当前屏幕上尺寸相近的两个纹理
-
-2. 将 1 中选取的纹理 选择最接近中心点纹理坐标的 2 X 2 纹理单元矩阵进行采样（线性过滤）
-
-3. 将 2 中两次采样的结果进行加权平均（**8 个纹理单元**采样），得到最后的采样数据
-
-
-
-### 2.4 各向异性过滤 Anisotropic
+### 2.3 各向异性过滤 Anisotropic
 
 > 之前提到的三种过滤方式，默认纹理在 x，y 轴方向上的缩放程度是一致的（纹理表面刚好正对着摄像机）
 > 当纹理在 3D 场景中，纹理表面刚倾斜于虚拟屏幕平面时，出现一个轴的方向纹理放大，一个轴的方向纹理缩小的情况（**OpenGL 判定为纹理缩小**）需要使用各向异性过滤配合以上三种过滤方式来达到最佳的效果
@@ -141,6 +120,8 @@ glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);  //放大
    异向程度为 4，且在 缩放方面 X 轴 > Y 轴，所以 X 轴采样 2 个像素，Y 轴采样 2 * 异向程度 = 8 个像素
    采样范围为最接近中心点纹理坐标的 2 X 8 的像素矩阵
 
+![](./images/texture_anisotropic.png)
+
 
 
 OpenGL 中设置各向异性过滤
@@ -152,6 +133,34 @@ glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 异向程度);
 各向异性对比三线性
 
 ![](images/texture_anisotropic.jpg)
+
+
+
+### 2.4 多级渐远纹理过滤 Mipmap 
+
+Migmap 用来对同一纹理生成多个不同尺寸的纹理，用 *Level of Detail* (**LOD**) 来规定纹理缩放的大小
+LOD 0 为原始尺寸，从 LOD 1 开始，LOD n 的纹理宽高为 LOD n-1 的一半，直到纹理的大小缩放为 1 X 1 为止
+
+距观察者的距离超过一定的阈值，OpenGL会使用不同的多级渐远纹理，即最适合物体的距离的那个。由于距离远，解析度不高也不会被用户注意到
+
+优点：效果最好，适用于动态物体或景深很大的场景
+缺点：效率低，会占用一定的空间，只能用于纹理被缩小的情况
+
+![](./images/texture_mipmapping.png)
+
+
+
+开启 Mipmap 下的纹理采样
+
+![](./images/texture_mipmap.png)
+
+例，三线性过滤 Trilinear 方法：
+
+1. 取 Mipmap 纹理中距离与当前屏幕上尺寸相近的两个纹理
+
+2. 将 1 中选取的纹理 选择最接近中心点纹理坐标的 2 X 2 纹理单元矩阵进行采样（线性过滤）
+
+3. 将 2 中两次采样的结果进行加权平均（**8 个纹理单元**采样），得到最后的采样数据
 
 
 
@@ -494,6 +503,12 @@ $$
 
 
 
+# 四、纹理压缩
+
+
+
+
+
 
 
 # 引用
@@ -506,6 +521,9 @@ $$
 6. [基于 ComputeShader 生成 Perlin Noise 噪声图](https://zhuanlan.zhihu.com/p/88518193)
 7. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
 8. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
+9. [Learning DirectX 12 – Lesson 4 – Textures](https://www.3dgep.com/learning-directx-12-4/)
+10. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
+11. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
 
 
 

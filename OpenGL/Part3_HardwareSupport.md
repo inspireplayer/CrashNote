@@ -70,31 +70,71 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
 > 对功耗影响最大的是带宽
 
 **IMR（Immediate Mode Rendering）立即渲染模式**
+把三角形 Rasterizing，以像素为单位进行 Shading 的传统方式
 
 - PC 上常见的渲染模式，功耗大，速度快
+
 - 每个渲染命令都会立即开始
+  GPU 使用额外的带宽快速存取几何数据
+
 - 遮蔽处理的部分**会**被渲染处理器
+
 - 流程
   ![](images/imr.jpg)
-
-
+  
+  ```py
+  for draw in renderPass:
+      for primitive in draw:
+          for vertex in primitive:
+              execute_vertex_shader(vertex)
+              
+          if primitive not culled:
+              for fragment in primitive:
+                  execute_fragment_shader(fragment)
+  ```
+  
+  
 
 **TBR（Tile Based Rendering）贴图渲染**
+为了取代以前使用的将在 IMR 中的可见三角形挑选出来的 Depth buffer 而研发的方法
+将要渲染的画面分成许多 Tile，以 Tile 为单位进行 Rasterization
 
 - **移动端 GPU 常用的渲染模式，功耗低，速度慢**
+
 - 将渲染的一帧缓存分成一个个的区块（tile）
   当提交渲染命令的时候，GPU 不会立刻进行渲染，而是一帧内所有的渲染命令积攒起来，最后统一渲染。
   每次 GPU 通过中间缓冲器 [SRAM](https://baike.baidu.com/item/SRAM/7705927?fr=aladdin) 访问 [DRAM](https://baike.baidu.com/item/DRAM) 显存上的一小块区块执行渲染命令以降低带宽
+  
 - 遮蔽处理的部分**会**被渲染器处理
+
 - 流程
   ![](images/tbr.jpg)
-
-
+  
+  ```py
+  # Pass one
+  for draw in renderPass:
+      for primitive in draw:
+          for vertex in primitive:
+              execute_vertex_shader(vertex)
+          if primitive not culled:
+              append_tile_list(primitive)
+  
+  # Pass two
+  for tile in renderPass:
+      for primitive in tile:
+          for fragment in primitive:
+              execute_fragment_shader(fragment)
+  ```
+  
+  
 
 **TBDR（Tile Based Deferred Rendering）贴图延迟渲染**
+在 GPU 里面通过分类找出三角形排列顺序，可以去掉不可见的部分
 
 - 基于 TBR 贴图渲染的低功耗优势 [具体说明](https://en.wikipedia.org/wiki/Tiled_rendering)
 - 遮蔽处理的部分**不会**被渲染器处理
+- 没有 Z-buffer，内存利用率更高，减少开销
+- 不用担心渲染顺序，可以正确的处理半透明效果
 - 流程
   ![](images/tbdr.jpg)
 
@@ -186,8 +226,10 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
 
 # 引用
 
-1. [移动 GPU 渲染模式](https://blog.csdn.net/u013467442/article/details/40684479)
-2. [针对移动端 TBDR 架构 GPU 特性的渲染优化](https://blog.csdn.net/leonwei/article/details/79298381)
-3. [GPU架构图](https://blog.csdn.net/pizi0475/article/details/7573996)
-4. [渲染优化-从GPU的结构谈起](https://zhuanlan.zhihu.com/p/58694744)
+1. [Tile-Based Rendering](https://developer.arm.com/solutions/graphics-and-gaming/developer-guides/learn-the-basics/tile-based-rendering)
+2. [Understanding Render Passes](https://developer.arm.com/solutions/graphics-and-gaming/developer-guides/learn-the-basics/understanding-render-passes)
+3. [移动 GPU 渲染模式](https://blog.csdn.net/u013467442/article/details/40684479)
+4. [针对移动端 TBDR 架构 GPU 特性的渲染优化](https://blog.csdn.net/leonwei/article/details/79298381)
+5. [GPU架构图](https://blog.csdn.net/pizi0475/article/details/7573996)
+6. [渲染优化-从GPU的结构谈起](https://zhuanlan.zhihu.com/p/58694744)
 

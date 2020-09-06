@@ -121,10 +121,8 @@ SurfaceTexture 使用流程
   public void onSurfaceTextureUpdated(SurfaceTexture surface) {}
   ```
   <img src="./images/textureView.jpeg"  />
-
-
-
-
+  
+  
 
 ### 2.4 Android 5.0 引入渲染线程
 
