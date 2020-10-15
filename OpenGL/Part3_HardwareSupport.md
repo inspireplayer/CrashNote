@@ -20,6 +20,19 @@ GPU 所处的环境：计算机的硬件结构如下
 
 ![](images/GPU_VS_CPU.png)
 
+**缓存行（Cache-line）**CPU 缓存存储数据的最小单位，大小为 64B
+
+CPU 主要采用三层缓存（当今主流的 CPU 架构）
+
+1. L1、L2 缓存成为本地核心内缓存，即一个核一个。如果你的机器是4核，
+2. 那就是有 4 个 L1+4 个 L2
+3. L3 缓存是所有核共享的。即不管你的 CPU 是几核，这个 CPU 中只有一个 L3
+4. L1 缓存的大小是 64K，即 32K 指令缓存 +32K 数据缓存。L2 是 256K，L3 是 2M。这不是绝对的目前 Intel CPU 基本是这样的设计
+
+![](./images/CPU_Cache.jpg)
+
+
+
 GPU 在 shader 中进行的向量运算采用 SIMD 或 MIMD 计算方式
 
 > SISD（Single Instruction Single Data Stream，单指令单数据流）：传统顺序执行计算机使用

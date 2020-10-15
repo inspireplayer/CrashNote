@@ -1,17 +1,63 @@
 [TOC]
 
-# 一、光学描述
+# 一、光照
 
-## 1. 光源
+光线实际上可以被认为是一束没有耗尽就不停向前运动的能量，而光束是通过碰撞的方式来消耗能量
 
-光源的方向：$l$ 表示
 
-光的量化：辐照度（irradiance）
 
-- 平行光的辐照度：垂直与光线方向 $l$ 的 **单位面积** 上 **单位时间** 内穿过的能量
-  可以粗略的理解为 平行光的辐照度 = ${能量 \over {d \over \cos \theta}} = {能量 \over d}\cos \theta$
+## 1. 辐射量
+
+辐射量
+
+- $Q_e$ 辐射能（energy）
+  单个光子的辐射能表示为 $Q_e = {hc \over \lambda}$，单位是焦耳 $J$
+
+- $\Phi_e$ 辐通量（radiant flux）
+  辐通亮又称功率<u>单位时间</u>内发射，接收或传输的能量 $\Phi_e = {dQ \over dt}$，单位是瓦特 $W$
+光源的全部发射能量通常用辐射通量表示
   
-  ![](./images/irradiance.png)
+- $E_e$ 辐照度（irradiance）
+  平行光的辐照度：**垂直于光线方向**的 **单位面积** 上 **单位时间** 内穿过的能量，单位是 $W/m^2$
+  与平行光线垂直的平面 $A^\bot$ 上的辐照度 $E_e = {\Phi_e \over A\cos \theta}$
+  辐射照度与距离的平方成反比
+
+![](./images/irradiance.png)
+
+- $I_e$ 辐强度（radiant intensity）
+  **元立体角**内的辐通量 $I_e = {d\Phi \over d\Omega}$，单位是 $W/sr$
+  多用于测量点光源的强度
+  
+  > $\Omega / \omega$ 立体角， 单位 球面度 $sr$
+  > 在[球坐标](https://baike.baidu.com/item/球坐标系) $(r,\theta,\phi)$ 下，观测点为球心，构造一个单位球面：
+  > 任意物体投影到该单位球面上的投影面积，即为该物体相对于该观测点的立体角
+  > $$
+  > \begin{align}
+  > dA_2 &= rsin \theta d\phi * rd\theta = r^2(sin\theta d\phi d\theta) \\
+  > d\Omega &= {dA_2 \over r^2} = sin\theta d \theta d \phi \\
+  > \Omega &= \int d \Omega \\
+  > \Omega_{总面积} &= \int _0^{2\pi} d\phi \int_0^{\pi} sin\theta d\theta = 4\pi
+  > \end{align}
+  > $$
+	> ![](./images/light_solidAngle.jpg) 
+
+- $L_e$ 辐亮度（radiance）
+  表示**单位面积**和**单位立体角**上的辐通量，单位 $W/(m^2 \cdot sr)$
+  考察一束激光，它射向一个物体表面，来自这个方向，并到达物理表面上一个给定点的辐射通量大小就是辐射亮度
+  描述传感器（摄影机，人眼等）感受辐射最常用的量，辐亮度与距离无关
+  其中，
+  $\theta$ 入射光线与平面法线的夹角
+  $A$ 真实的平面面积，是 $A^{\bot}$ 的投影
+  $A^{\bot}$ 表示垂直光线方向的平面面积
+  $$
+  L_e = {d^2 \Phi_e \over d A^\bot \cdot d \Omega} = {d^2 \Phi_e \over cos\theta dA \cdot d\Omega}
+  $$
+  ![](./images/light_radiance.png)
+
+色度学单位和辐度学单位是一一对应的，详细的单位名称分析和转换过程可以参考 [从真实世界到渲染](https://zhuanlan.zhihu.com/p/118272193)
+其他相关的辐照单位对应的色度学单位如下：
+
+![](./images/light_equation.svg)
 
 
 
@@ -37,19 +83,12 @@
 
 
 
-## 3. BRDF 光照模型
 
-**着色（shading）**：计算某个观察方向出射度的过程，期间需要材质属性、光源信息 和 一个等式（这个等式也称为光照模型）
-
-**BRDF（Bidirectional Reflectance Distribution Function）光照模型**：描述光线从某个方向照射到一个表面时，有多少光线被反射？反射的方向有哪些？图形学中，大多数使用一个数学公式来描述，并提供一些参数来调整材质属性（例如：根据入射光角度来调整 Phong 光照模型的高光反射和漫反射的强度系数）
-
-
-
-
-
-# 二、光照模型
+# 二、基础光照模型
 
 > 基础光照模型是对 BRDF 光照模型进行简化和理想化后的经验模型
+
+**着色（shading）**：计算某个观察方向出射度的过程，期间需要材质属性、光源信息 和 一个等式（这个等式也称为光照模型）
 
 
 
@@ -70,7 +109,7 @@
 
 Phong 照模型只关心由光源发射，经过物体表面一次反射后**进入摄像机的光线**
 $$
-Phong \space 光照模型 = 环境光 + 自发光 + 漫反射 + 高光反射
+Phong \space 光照模型 = 环境光 + 自发光 + 漫反射 + 镜面反射
 $$
 
 - **环境光 Ambient**：间接光照（indirect light）经过多个物体之间反射的光照
@@ -102,7 +141,7 @@ Color_{diff} = Color_{light} \cdot Color_{材质强度} (0.5 + 0.5* n \cdot I)
 $$
 
 
-- **高光反射 Specular**：
+- **镜面反射 Specular**：
   
   ![](./images/light_reflect.png)
   
@@ -117,7 +156,6 @@ $$
   r &= 2 (\hat n \cdot I) \hat n - I
   \end{align}
   $$
-  
   
   **高光反射**，已知 观察方向 $\hat v$ 是单位向量
   
@@ -135,7 +173,7 @@ $$
 ## 3. Blinn-Phong 光照模型
 
 $$
-Blinn-Phong \space 光照模型 = 环境光 + 自发光 + 漫反射 + 高光反射
+Blinn-Phong \space 光照模型 = 环境光 + 自发光 + 漫反射 + 镜面反射
 $$
 
 与 Phong 光照模型相似，Blinn-Phong 在 高光反射 的计算上有不同的实现
@@ -169,30 +207,176 @@ Blinn-Phong 较 Phong 具有更真实的光照效果
 
 
 
-## 4. Fresnel reflection 菲涅耳反射
 
-菲涅耳反射：观察方向和物体表面法线的夹角越大，反射效果越明显
+## 5. 基于物理的 PBR 光照模型
 
-应用：菲涅耳反射计算的强度系数 * 噪声纹理 **可以表现出水波的效果**
+**基于物理**的渲染（非真实的物理渲染）是为了使用一种更符合物理学规律的方式来模拟光线，因此这种渲染方式与我们原来的 Phong 或者 Blinn-Phong 光照模型相比总体上看起来要更真实一些
 
-近似公式，其中 $v$ 表示视角方向，$n$ 表示物体表面法线
+**Physically Based Rendering** 与物理性质非常接近，可以直接以物理参数为依据来编写表面材质，而不必盲目的修改与调整
+PBR 满足以下条件
 
-- Schlick 菲涅耳近似公式 $F_{schlick}(v,n) = F_0 + (1-F_0)(1-v \cdot n)^5$
-- Empricial 菲涅耳近似公式 $F_{empricial}(v,n) = max(0,min(1, bias + scale * (1- v \cdot n)^{power}))$
-  其中 bias，scale，power 是控制项
-
-![](./images/light_fresenel_reflection.png)
+1. 基于微平面 (Microfacet) 的表面模型
+2. 能量守恒
+3. 应用基于物理的 BRDF
 
 
 
+### 5.1 Microfacet 微平面模型
+
+达到微观尺度之后任何平面都可以用被称为微平面 (Microfacets) 的细小镜面来进行描绘
+
+- 平面越粗糙，这个平面上的微平面的排列就越混乱。当我们特指镜面光/镜面反射时，入射光线更趋向于向完全不同的方向发散 (Scatter) 开来
+- 平面越光滑，光线大体上会更趋向于向同一个方向反射，造成更小更锐利的反射
+
+![](./images/microfacets_light_rays.png)
+
+**粗糙度**
+
+- 用统计学的方法来概略的估算微平面的粗糙程度，表示半程向量（Blinn-Phong 中）的方向与微平面平均取向方向一致的概率
+
+- 微平面的取向方向与中间向量的方向越是一致，镜面反射的效果就越是强烈越是锐利
+
+  ![](./images/light_ndf.png)
 
 
-## 5. 基于物理的光照模型
 
-限于篇幅问题，这里只列参考文章：
+Energy Conservation 能量守恒 ：出射光线的能量永远不能超过入射光线的能量（发光面除外）
 
-- [Unity Shader: 基于物理的渲染](./EXT2_UnityShadersChapter18.pdf)
+- 根据能量守恒，随着粗糙度的上升镜面反射区域的会增加，但是镜面反射的亮度却会下降
+- 反射/镜面反射 + 折射/漫反射 = 1.0（光强度）
 
+
+
+### 5.2 反射率方程 和 BRDF
+
+反射率方程
+
+- 所需的**辐亮度**可通过光源和环境贴图来估算得出
+- 表示点 $p$ 在 $\omega_o$ 方向被反射出的**辐亮度**（见一、光学描述 1.辐射量的辐亮度）的**总和**
+  它包含以 $p$ 为球心的单位半球领域 $\Omega$ 内所有入射方向的 $d\omega_i$ 之和
+  其中，$\omega_o$ 观察/出射方向，$\omega_i$ 光线入射方向，$n\cdot\omega_i$ 入射方向和法线的夹角 $cos\theta$ 值
+  $f_r$ BRDF，基于表面材质属性来对入射**辐亮度**进行缩放或者加权
+
+$$
+L_0(p,\omega_o) = \int_{\Omega} f_r(p,\omega_i,\omega_o)L_i(p,w_i)n\cdot\omega_id\omega_i
+$$
+
+BRDF（Bidirectional Reflectance Distribution Function）双向反射分布函数：可以近似的求出每束光线对一个给定了材质属性的平面上最终反射出来的光线所作出的**贡献程度**，必须遵守能量守恒
+
+
+
+### 5.3 Cook-Torrance BRDF 模型
+
+$$
+f_r = k_d\cdot f_{lambert} + k_s \cdot f_{cook-torrance}
+$$
+
+其中，$k_d + k_s = 1$
+
+- $k_d$ 折射光线能量比率
+
+- $k_s$ 反射光线能量比率
+
+- 漫反射 $f_{lambert} = {color_{light} \over \pi}$（除以 π 是为了对漫反射光进行归一化）
+  假设在所有方向观察亮度都是相同的，因此 $f_{lambert}$ 是常数
+  $$
+  \begin{align}
+  \int_{\Omega} f_{lambert} cos\theta d\omega' &= color_{light}\\
+  f_{lambert} \int_{\Omega} cos\theta d\omega' &=\\
+  f_{lambert} \int_0^{2\pi} d\phi \int_0^{\pi\over 2} cos\theta d\theta &= \\
+  f_{lambert} \pi &=\\
+  f_{lambert} &= {color_{light} \over \pi}
+  \end{align}
+  $$
+
+- 镜面反射 $f_{cook-torrance} = {DFG \over 4(\omega_o \cdot n)(\omega_i \cdot n)}$
+
+
+
+字母 D, F, G 分别代表着一种类型的函数，各个函数分别用来近似的计算出表面反射特性的一个特定部分
+
+1. Normal **D**istribution Function 正态分布函数
+   用来估算微平面的主要函数，估算在受到表面粗糙度的影响下，取向方向与中间向量一致的微平面的数量
+   以下设给定向量 $h$，通过 NDF 函数 Trowbridge-Reitz GGX 计算与 $h$ 方向一致的概率
+   $h$：平面法向量 $n$ 和光线方向向量之间的中间向量
+   $\alpha$：表面的粗糙度（参数）
+   $$
+   NDF_{GGXTR}(n,h,\alpha) = {\alpha^2 \over \pi((n\cdot h)^2(\alpha^2-1)+1)^2}
+   $$
+
+2. **F**resnel reflection 菲涅耳反射
+
+   用来描述不同的表面角下表面所**反射的光线所占的比率**
+   菲涅耳反射：观察方向和物体表面法线的夹角越大，反射效果越明显
+
+   应用：菲涅耳反射计算的强度系数 * 噪声纹理 **可以表现出水波的效果**
+
+   近似公式，其中 $v$ 表示视角方向的**单位向量**，$n$ 表示物体表面**单位法线**
+
+   - Schlick 菲涅耳近似公式
+     $F_{schlick}(v,n) = F_0 + (1-F_0)(1-v \cdot n)^5$
+     其中 $F_0$ 表示平面的基础反射率（0 度角）
+     它是利用所谓**折射指数**(Indices of Refraction)或者说 IOR 计算得出的
+   - Empricial 菲涅耳近似公式
+     $F_{empricial}(v,n) = max(0,min(1, bias + scale * (1- v \cdot n)^{power}))$
+     其中 bias，scale，power 是控制项
+     ![](./images/light_fresenel_reflection.png)
+     
+     
+
+3. **G**eometry Function 几何函数
+
+   用来描述微平面自成阴影的属性
+   当一个平面相对比较粗糙的时候，平面表面上的微平面有可能挡住其他的微平面从而**减少表面所反射的光线**
+
+   1. 单纯的计算平面遮挡的几何函数可采用 GGX 与 Schlick-Beckmann 近似的结合体
+      因此又称为 Schlick-GGX 
+      $v$：观察方向
+      $\alpha$：表面的粗糙度（参数）
+      $k_{direct}$：直接光照
+      $k_{IBL}$：IBL（Image based lighting）基于图像的光照
+
+      - 其光源不是可分解的直接光源，而是将周围环境整体视为一个大光源
+      - 通常使用（取自现实世界或从 3D 场景生成的）环境立方体贴图 (Cubemap) 
+        我们可以将立方体贴图的每个像素视为光源，在渲染方程中直接使用它
+
+      $$
+      \begin{align}
+      k_{direct} &= {(\alpha + 1)^2 \over 8} \\
+      k_{IBL} &= {\alpha ^2 \over 2} \\
+      G_{SchlickGGX}(n,v,k) &= {n \cdot v \over (n\cdot v)(1-k) + k}
+      \end{align}
+      $$
+
+   2. 将观察方向（几何遮蔽 Geometry Obstruction）和光线方向向量（几何阴影 Geometry Shadowing）都考虑进去后采用 Smith’s method 方法计算
+      $v$：观察方向
+      $l$：光线方向
+      $$
+      G_{Smith}(n,v,l,k) = G_{SchlickGGX}(n,v,k) \cdot G_{SchlickGGX}(n,l,k)
+      $$
+
+
+
+
+完整的基于 Cook-Torrance BRDF 模型的反射率方程即 PBR 方程为
+$$
+L_0(p,\omega_o) = \int_{\Omega} (k_d{color \over \pi} + k_s{DFG \over 4(\omega_o \cdot n)(\omega_i \cdot n)})L_i(p,w_i)n\cdot\omega_id\omega_i
+$$
+
+
+
+### 5.4 PBR 材质
+
+- 反照率 Albedo 贴图
+  为每一个金属的纹素（Texel 纹理像素）指定表面颜色或者基础反射率，只包含表面的颜色
+- 法线贴图
+- 金属度 Metallic 贴图
+  逐个纹素的指定该纹素是不是金属质地的
+- 粗糙度 Roughness / 光滑度 Smoothness 贴图
+  以纹素为单位指定某个表面有多粗糙，粗糙度 = 1.0 – 光滑度
+- 环境光遮蔽 Ambient Occlusion 贴图
+  为表面和周围潜在的几何图形指定了一个额外的阴影因子
+  网格/表面的环境遮蔽贴图要么通过手动生成，要么由 3D 建模软件自动生成
 
 
 
@@ -296,6 +480,8 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 面光源：由空间中的矩形限定，在所有方向上均匀地在其表面区域上发出光，但仅从矩形的一侧发出
 
 ![](./images/light_area.png)
+
+
 
 
 
@@ -578,10 +764,16 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 - [learnopengl-ShadowMapping](https://learnopengl-cn.github.io/05 Advanced Lighting/03 Shadows/01 Shadow Mapping/)
 - [learnopengl-Point Shadows](https://learnopengl-cn.github.io/05 Advanced Lighting/03 Shadows/02 Point Shadows/)
 - [learnopengl-SSAO](https://learnopengl-cn.github.io/05 Advanced Lighting/09 SSAO/)
+- [learnopengl-PBR Theory](https://learnopengl.com/PBR/Theory)
 - [Everything has Fresnel](http://filmicworlds.com/blog/everything-has-fresnel/)
 - [Unity_Shaders_Book](https://github.com/candycat1992/Unity_Shaders_Book)
+- [弧长和曲面面积](https://blog.csdn.net/sunbobosun56801/article/details/78657455)
+- [深入浅出基于物理的渲染一](https://zhuanlan.zhihu.com/p/33630079)
 - [实时渲染中常用的几种 Rendering Path](https://www.cnblogs.com/polobymulberry/p/5126892.html)
 - [Unity 手册/图形/图形概述](https://docs.unity3d.com/cn/current/Manual/RenderingPaths.html)
+- [Unity Shader: 基于物理的渲染](./EXT2_UnityShadersChapter18.pdf)
 - [OGL-Cascaded Shadow Mapping](http://ogldev.atspace.co.uk/www/tutorial49/tutorial49.html)
 - [MSDN-Cascaded Shadow Maps](https://docs.microsoft.com/zh-cn/windows/win32/dxtecharts/cascaded-shadow-maps?redirectedfrom=MSDN)
+- [彻底看懂 PBR/BRDF 方程](https://zhuanlan.zhihu.com/p/158025828)
+- [Create icosphere mesh by code](http://blog.andreaskahler.com/2009/06/creating-icosphere-mesh-in-code.html)
 

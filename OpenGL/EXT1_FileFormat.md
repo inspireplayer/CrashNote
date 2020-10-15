@@ -1,6 +1,106 @@
 [TOC]
 
-# 一、三维文件格式
+# 一、图片存储格式
+
+## 1. BMP 文件
+
+无损的图片格式，全称 Bitmap（无压缩，体积大）
+可以直接存储图片数据，也可以采用索引表的存储方式。但即便采用了索引表的存储方式，也不能使体积缩小太多
+
+适合：logos 等有明确边界的图片，程序的缓存文件（无压缩，可直接存储的特点）
+
+
+
+## 2. GIF 文件
+
+无损的图片压缩格式，只能采用索引表的存储方式存储，因此最多能表示 256 种颜色
+GIF 的图片善于做动画，并且支持 alpha 透明通道
+
+适合：logos 等有明确边界的简单图片
+
+
+
+## 3. PNG 文件
+
+Portable Network Graphics
+无损的图片压缩格式，不能做动画，支持 alpha 透明通道（透明效果优于 GIF）
+
+- PNG-8：采用索引表的方式存储图片，最多能表示 256 种颜色（压缩后体积小于 GIF）
+  适合：logos 等有明确边界的简单图片
+- PNG-24：采用直接存储的方式存储图片，能存储上千种颜色（24 位存储一个像素）
+  适合：兼顾好的压缩和效果的照片存储
+
+
+
+## 4. JPEG 文件
+
+Joint Photographic Experts Group
+简称 jpg，有损的图片压缩格式，压缩后体积小（虽然有损，但不易被人眼察觉，24 位存储一个像素 RGB）
+适合：只考虑体积照片的压缩
+
+JPEG 格式图片是分为一个一个的段来存储的：
+段的多少和长度并不是一定的。只要包含了足够的信息，该 JPEG 文件就能够被打开，呈现给人们
+
+段的结构：
+
+```c++
+名称  字节数 数据  说明
+------------------------------------------------------
+段标识   1   FF   每个新段的开始标识
+段类型   1        类型编码（称作“标记码”）
+段长度   2        包括段内容和段长度本身,不包括段标识和段类型
+段内容            ≤65533字节
+```
+
+
+
+JPEG 图片存储的段文件按顺序依次如下：
+
+1. **SOI（文件头）**Start Of Image
+   段标识：FF（标志新段的开始）
+   段类型：D8（SOI 的段类型为 D8，表示文件头）
+2. APP0（图像识别信息）Application data marker, type 0
+   段标识：FF（标志新段的开始）
+   段类型：E0（APP0 的段类型为 E0，定义交换格式和图像识别信息）
+3. DQT（定义量化表）
+4. SOF0（图像基本信息）
+5. DHT（定义 Huffman 表）
+6. DRI（定义重新开始间隔）
+7. SOS（扫描行开始）
+8. **EOI（文件尾）**End Of Image
+   段标识：FF（标志新段的开始）
+   段类型：D9（EOI 的段类型为 D9 表示文件尾）
+
+
+
+## 5. SVG 文件
+
+矢量的图片存储方案，内部存储的不是像素，而是曲线和线条
+这使得即便是看起来很大的 SVG 图，存储起来会很小（前提是画面图像足够简单）
+SVG 使用 XML 语法编写，并且可以在文本工具里修改（可以使用 JavaScript 快速修改 SVG 图片的颜色）
+
+适合：logos 或 icons 等简单且需要适配不同尺寸的网站图片
+
+
+
+
+## 6. TGA 文件
+
+游戏中常用的图像格式
+
+### 6.1 非压缩文件格式
+
+![](./images/file_format_tga.jpg)
+
+### 6.2 压缩文件格式
+
+
+
+
+
+
+
+# 二、三维文件格式
 
 三维软件之间互相导入导出一般会涉及到一些格式不兼容的问题，不同的格式有着不同的定位及用处，有开源的也有商业的
 
@@ -20,7 +120,7 @@
 
 
 
-# 二、三维软件
+# 三、三维软件
 
 三维软件根据工作的功能分类为：
 
@@ -62,7 +162,17 @@
 
 
 
+
+
 # 引用
 
+- [What are the different usecases of PNG vs. GIF vs. JPEG vs. SVG?](https://stackoverflow.com/questions/2336522/what-are-the-different-usecases-of-png-vs-gif-vs-jpeg-vs-svg)
+- [libpng](http://www.libpng.org/pub/png/libpng.html)
+- [www.w3.org/Graphics](https://www.w3.org/Graphics/JPEG/itu-t81.pdf)
+- [JPEG 解码器](https://zhuanlan.zhihu.com/p/27296876)
+- [使用 libjpeg 进行图片压缩](https://zhuanlan.zhihu.com/p/126728039)
+- [影像算法解析——JPEG 压缩算法](https://zhuanlan.zhihu.com/p/40356456)
+- [TGA 文件格式解析](http://www.twinklingstar.cn/2013/471/tga-file-format/)
 - [三维文件格式知多少 ](http://www.bgteach.com/article/132)
-- [三维软件知多少]([http://www.bgteach.com/article/40](http://www.bgteach.com/article/40))
+- [三维软件知多少](http://www.bgteach.com/article/40)
+
