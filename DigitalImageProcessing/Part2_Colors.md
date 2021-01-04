@@ -60,7 +60,10 @@
 
 ![](images/modelRGB.png)
 
-使用 RGB 色彩模型的应用：[3DLUT 的 unity 实现](https://zhuanlan.zhihu.com/p/43241990)
+使用 RGB 色彩模型的应用：
+
+- [3D LUT 的 Unity 实现](https://zhuanlan.zhihu.com/p/43241990)
+- [3D LUT Creator Tutorials](https://www.3dlutcreator.com/3d-lut-creator---tutorials.html)
 
 
 

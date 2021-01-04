@@ -35,7 +35,7 @@ Portable Network Graphics
 ## 4. JPEG 文件
 
 Joint Photographic Experts Group
-简称 jpg，有损的图片压缩格式，压缩后体积小（虽然有损，但不易被人眼察觉，24 位存储一个像素 RGB）
+简称 jpg，有损的图片压缩格式，压缩后体积小（虽然有损，但不易被人眼察觉，24 位存储一个像素 RGB，**不支持透明**）
 适合：只考虑体积照片的压缩
 
 JPEG 格式图片是分为一个一个的段来存储的：

@@ -2,7 +2,7 @@
 
 # 一、向量
 
-##1. 概念
+## 1. 概念
 
 - 起点是原点
 - 向量 = 方向 + 大小
@@ -386,7 +386,7 @@ v \space 到 \space n \space 的投影：v_{||}
 v_{||} &= {n \cdot v \over |n|}\\
 由于 \space n \space 是单位向量，且和 \space v_{||} \space 方向相同，则 \\
 v_{||} &= n \cdot v\\
-|v_{||}|n &= n \cdot v \\
+|v_{||}|v_{单位向量} &= n \cdot v \\
 n \cdot v &= |v_{||}|n
 \end{align}
 $$
@@ -451,7 +451,7 @@ $$
 ## 1. 概念
 
 - **几何解释**
-  二维空间：通过 2 个向量叉乘得到这 2 个向量构成的面积（面积也有负，取决于叉乘的顺序）
+  二维空间：通过 2 个向量叉乘得到这 2 个向量构成的**面积**（面积也有负，取决于叉乘的顺序）
   三维空间：通过 2 个向量叉乘得到 1 个**垂直于这两个向量平面的向量**
   ![](images/cross2.png)
 
@@ -495,6 +495,10 @@ $$
   &= 
   \color{green}{\hat x}(\color{#F80}{v_2} \cdot  \color{#F0F}{w_3} - \color{#F80}{v_3}\cdot \color{#F0F}{w_2}) + 
   \color{red}{\hat y}(\color{#F80}{v_3} \cdot  \color{#F0F}{w_1} - \color{#F80}{v_1}\cdot \color{#F0F}{w_3}) + 
+  \color{blue}{\hat z}(\color{#F80}{v_1} \cdot  \color{#F0F}{w_2} - \color{#F80}{v_2}\cdot \color{#F0F}{w_1})\\
+  &=
+  \color{green}{\hat x}(\color{#F80}{v_2} \cdot  \color{#F0F}{w_3} - \color{#F80}{v_3}\cdot \color{#F0F}{w_2}) - 
+  \color{red}{\hat y}(\color{#F80}{v_1}\cdot \color{#F0F}{w_3} - \color{#F80}{v_3} \cdot  \color{#F0F}{w_1}) + 
   \color{blue}{\hat z}(\color{#F80}{v_1} \cdot  \color{#F0F}{w_2} - \color{#F80}{v_2}\cdot \color{#F0F}{w_1})\\
   &= \overrightarrow S_{垂直于V 和 W 构成的平面}
   \end{align}

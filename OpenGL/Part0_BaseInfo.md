@@ -92,8 +92,9 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
 
 
 
-
 ## 5. Shader 接口一致性
+
+> shader link 到 program 里可以 detached 后继续使用，这样便无法抓取 shader 查看
 
 - Vertex Shader 的 输入 和 应用程序的顶点属性数据接口 一致
 - Vertex Shader 的 输出 和 Fragment Shader 对应的 输入 一致
@@ -300,3 +301,5 @@ NVIDIA 的 CG（C for Graphic）
 8. [Platform-specific rendering differences](https://docs.unity3d.com/Manual/SL-PlatformDifferences.html)
 9. [Stateless, layered, multi-threaded rendering](https://blog.molecular-matters.com/2014/11/06/stateless-layered-multi-threaded-rendering-part-1/)
 10. [Game Programming Patterns](http://gameprogrammingpatterns.com/contents.html)
+11. [Shader detached program](https://github.com/google/gapid/issues/398)
+
