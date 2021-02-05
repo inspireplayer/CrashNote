@@ -411,6 +411,18 @@ $$
 
 
 
+点光源的辐亮度物理计算公式：
+$$
+\begin{align}
+\phi &= \int _s I_e d I_e = \int _0^{2\pi} \int_0^{\pi} I_e d\theta d\phi = 4\pi \space I_e \\\\
+L_e &= f(v, l)E_e \\
+&= f(v, l)L_{in} <n \cdot l> \\
+&= f(v, l){I_e \over distance^2}<n \cdot l >\\
+&= f(v, l){\phi \over{4 \pi \space distance^2}}<n \cdot l>
+\end{align}
+$$
+
+
 **光的衰减**
 
 衰减(Attenuation)：随着光线传播距离的增长逐渐削减光的强度
@@ -483,10 +495,67 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 
 
 
+## 5. 环境映射 Light probe
+
+基于图像的光照，其物理公式为
+$$
+L_e(v) = \int _\Omega f(l,v,\Theta) L(l)dl
+$$
 
 
 
-# 四、 阴影
+# 四、全局光照
+
+全局光照主要对以下生活中的现象进行模拟：
+
+1. **间接光照**
+   也称反射照明，通过其他物体反射的光线照亮物体的光照效果
+   ![](./images/light_indirect.png)
+2. **环境光遮蔽**
+   常用来模拟大面积的光源对整个场景的光照
+   ![](./images/light_AO.png)
+3. **反射**
+   指镜子会反射场景中一摸一样像的效果
+   ![](./images/light_bounce.png)
+4. **焦散**
+   光经过透明物体的折射后聚焦在一定范围上的效果
+   ![](./images/light_caustics.png)
+
+
+
+**离线渲染方案**
+
+1. 路径追踪 
+2. 光子映射 Photon Mapping 
+3. 辐射度 只能模拟漫反射现象
+
+
+
+**实时渲染方案**
+
+- 屏幕空间
+  1. 屏幕环境光遮蔽
+  2. 屏幕空间反射
+- 世界空间
+  1. 体素 Voxel Cone Tracing
+  2. 距离场 Distance Field
+  3. 实时光线追踪
+
+
+
+**存储**
+
+1. 光照贴图
+2. 反射探针
+   1. 漫反射
+   2. 高光反射
+
+
+
+
+
+
+# 五、 阴影
 
 ## 1. 阴影映射 Shadow Mapping
 
@@ -583,7 +652,7 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 
 ## 5. 屏幕空间的环境光遮挡 SSAO
 
-屏幕空间的环境光遮挡 （Screen Space Ambient Occlusion，SSAO）通过将褶皱、孔洞和非常靠近的墙面变暗的方法近似模拟出间接光照（如，下图）
+屏幕空间的环境光遮挡 （Screen Space Ambient Occlusion，SSAO）通过将褶皱、孔洞和非常靠近的墙面变暗的方法近似模拟出间接光照（常用来模拟大面积的光源对整个场景的光照 如，下图）
 
 ![](./images/light_ssao.png)
 
@@ -610,7 +679,7 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 
 
 
-# 五、光照渲染路径 Rendering Path
+# 六、光照渲染路径 Rendering Path
 
 渲染路径：**决定光照**如何应用到 shader 中，是当前渲染目标使用光照的流程
 

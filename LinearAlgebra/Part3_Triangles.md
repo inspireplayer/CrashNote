@@ -17,7 +17,35 @@ $$
 
 
 
-## 2. 求面积
+## 2. 垂心
+
+三角形从顶点到其对边的三条高的交点
+
+![](./images/linear_interpolate_triangle.png)
+
+应用：三角形着色时，已知三个点的颜色，混合计算整个三角形的颜色（高度比求插值）
+$$
+\begin{align}
+f_i &= d_i / h_i \\
+Color &= f_i * Color_i + f_j * Color_j + f_k * Color_k
+\end{align}
+$$
+
+
+## 3. 重心
+
+三角形从顶点到其对边中点的交点
+
+应用：三角形着色时，已知三个点的颜色，混合计算整个三角形的颜色（面积比求插值）
+$$
+\begin{align}
+f_i &= {area(x, x_j, x_k) \over area(x_i, x_j, x_k)} \\
+Color &= f_i * Color_i + f_j * Color_j + f_k * Color_k
+\end{align}
+$$
+
+
+## 4. 求面积
 
 已知三点坐标，求证三角形面积 $S_{\Delta ABC} = {1 \over 2}[(x_2-x_1)(y_3-y_1) - (y_2-y_1)(x_3-x_1)]$
 
