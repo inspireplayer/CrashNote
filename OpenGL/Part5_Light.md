@@ -11,12 +11,11 @@
 辐射量
 
 - $Q_e$ 辐射能（energy）
-  单个光子的辐射能表示为 $Q_e = {hc \over \lambda}$，单位是焦耳 $J$
-
+  代表单个光子的辐射能，表示为 $Q_e = {hc \over \lambda}$，单位是焦耳 $J$
+其中 $h$：Planck 常量（常数），$c$：光的速度（常数），$\lambda$：光的波长
 - $\Phi_e$ 辐通量（radiant flux）
-  辐通亮又称功率<u>单位时间</u>内发射，接收或传输的能量 $\Phi_e = {dQ \over dt}$，单位是瓦特 $W$
+  辐通亮又称功率，代表<u>单位时间</u>内发射、接收或传输的能量 $\Phi_e = {dQ \over dt}$，单位是瓦特 $W$
 光源的全部发射能量通常用辐射通量表示
-  
 - $E_e$ 辐照度（irradiance）
   平行光的辐照度：**垂直于光线方向**的 **单位面积** 上 **单位时间** 内穿过的能量，单位是 $W/m^2$
   与平行光线垂直的平面 $A^\bot$ 上的辐照度 $E_e = {\Phi_e \over A\cos \theta}$
@@ -28,19 +27,20 @@
   **元立体角**内的辐通量 $I_e = {d\Phi \over d\Omega}$，单位是 $W/sr$
   多用于测量点光源的强度
   
-  > $\Omega / \omega$ 立体角， 单位 球面度 $sr$
+  > Angle 角，圆的弧长比半径
+  >
+  > Solid Angle 立体角，$\Omega = {A \over r^2}$，表示符号 $\Omega / \omega$， 单位 球面度 $sr$
   > 在[球坐标](https://baike.baidu.com/item/球坐标系) $(r,\theta,\phi)$ 下，观测点为球心，构造一个单位球面：
   > 任意物体投影到该单位球面上的投影面积，即为该物体相对于该观测点的立体角
+  >
   > $$
   > \begin{align}
   > dA_2 &= rsin \theta d\phi * rd\theta = r^2(sin\theta d\phi d\theta) \\
   > d\Omega &= {dA_2 \over r^2} = sin\theta d \theta d \phi \\
   > \Omega &= \int d \Omega \\
-  > \Omega_{总面积} &= \int _0^{2\pi} d\phi \int_0^{\pi} sin\theta d\theta = 4\pi
-  > \end{align}
-  > $$
+	> \Omega_{总面积} &= \int _0^{2\pi} d\phi \int_0^{\pi} sin\theta d\theta = 4\pi
+	> \end{align}$$
 	> ![](./images/light_solidAngle.jpg) 
-
 - $L_e$ 辐亮度（radiance）
   表示**单位面积**和**单位立体角**上的辐通量，单位 $W/(m^2 \cdot sr)$
   考察一束激光，它射向一个物体表面，来自这个方向，并到达物理表面上一个给定点的辐射通量大小就是辐射亮度
@@ -221,29 +221,41 @@ PBR 满足以下条件
 
 
 
-### 5.1 Microfacet 微平面模型
+### 5.1 PBR 材质系统概述
 
-达到微观尺度之后任何平面都可以用被称为微平面 (Microfacets) 的细小镜面来进行描绘
+在遵循能量守恒、菲涅尔反射、微表面反射的物理规律下，PBR 描述的物体颜色构成：
 
-- 平面越粗糙，这个平面上的微平面的排列就越混乱。当我们特指镜面光/镜面反射时，入射光线更趋向于向完全不同的方向发散 (Scatter) 开来
-- 平面越光滑，光线大体上会更趋向于向同一个方向反射，造成更小更锐利的反射
+> 注：在移动平台，BRDF 的计算会消耗较多的 ALU，同时对于 BRDF 计算结果的精度要求没有这么高。一种优化的方式是将 BRDF 的部分复杂计算，预计算存储到纹理中。以增加一张 BRDF 贴图和纹理采样器的代价，来节约 ALU。
 
-![](./images/microfacets_light_rays.png)
+1. **镜面反射 Specular**
+   当光线照射到物体表面上时，光线会以和入射角度相同的反射角度从物体表面反弹出去
+   如果一个表面足够光滑，那么它将表现的像个镜子一样
+2. **漫反射 Diffuse Light / Diffusion / Subsurface Scattering**
+   部分散射的光有可能会通过内部的传播最终又反射回表面，再次成为可以观察到的光线
+   <u>物体所反射的颜色为物体的颜色</u>
+3. **透明与半透明**
+   在某些情况下扩散现象（Diffusion）会更加复杂，比如皮肤和蜡烛这些有着更广泛的扩散距离的材料
+   这时仅仅一张固有色贴图 Albedo 是不够的，<u>整个着色系统必须考虑到被照射物体的形状与厚度</u>
+   半透明：被照射物体足够的薄，那么往往能够从物体背面看到散射出来的光
+   透明：被照射物体内的扩散程度很低（比如玻璃），那么光的散射几乎是不可见的，你可以从物体的这一面看到其后面的整个画面
 
-**粗糙度**
-
-- 用统计学的方法来概略的估算微平面的粗糙程度，表示半程向量（Blinn-Phong 中）的方向与微平面平均取向方向一致的概率
-
-- 微平面的取向方向与中间向量的方向越是一致，镜面反射的效果就越是强烈越是锐利
-
-  ![](./images/light_ndf.png)
 
 
+**PBR 材质贴图**
 
-Energy Conservation 能量守恒 ：出射光线的能量永远不能超过入射光线的能量（发光面除外）
-
-- 根据能量守恒，随着粗糙度的上升镜面反射区域的会增加，但是镜面反射的亮度却会下降
-- 反射/镜面反射 + 折射/漫反射 = 1.0（光强度）
+- <u>反照率 Albedo 贴图</u>
+  为每一个金属的纹素（Texel 纹理像素）指定表面颜色（固有色）或者基础反射率，只包含表面的颜色
+- <u>金属度 Metallic 贴图</u>
+  导体有更强的反射，导体的反射光颜色会与 Albedo（固有色）不同
+  正式因为导体和非导体如此的不同，通常用金属度来控制一个材质是否为金属
+- <u>法线 Normal 贴图</u>
+  比微表平面颗粒要大的物体表面细节描述
+- <u>粗糙度 Roughness / 光滑度 Smoothness 贴图</u>
+  微表平面模型的简化，以纹素为单位指定某个表面有多粗糙，粗糙度 = 1.0 – 光滑度
+- <u>环境光遮蔽 Ambient Occlusion 贴图</u>
+  固定光源的辐照度贴图，多用于大场景的环境光
+  为表面和周围潜在的几何图形指定了一个额外的阴影因子
+  网格/表面的环境遮蔽贴图要么通过手动生成，要么由 3D 建模软件自动生成
 
 
 
@@ -265,7 +277,39 @@ BRDF（Bidirectional Reflectance Distribution Function）双向反射分布函�
 
 
 
-### 5.3 Cook-Torrance BRDF 模型
+### 5.3 Microfacet 微平面模型
+
+现实当中大多数物体的表面都会有非常微小的缺陷：微小的凹槽，裂缝，几乎肉眼不可见的凸起，以及在正常情况下过于细小以至于难以使用 Normal map 去表现的细节。尽管这些微观的细节几乎是肉眼观察不到的，但是他们仍然影响着光的扩散和反射
+
+- 平面越粗糙，这个平面上的微平面的排列就越混乱。当我们特指镜面光/镜面反射时，入射光线更趋向于向完全不同的方向发散 (Scatter) 开来
+- 平面越光滑，光线大体上会更趋向于向同一个方向反射，造成更小更锐利的反射
+
+![](./images/microfacets_light_rays.png)
+
+**粗糙度**（光泽度/平滑度）
+
+- 用统计学的方法来概略的估算微平面的粗糙程度，表示半程向量（Blinn-Phong 中）的方向与微平面平均取向方向一致的概率
+
+- 微平面的取向方向与中间向量的方向越是一致，镜面反射的效果就越是强烈越是锐利
+
+  ![](./images/light_ndf.png)
+
+
+
+Energy Conservation 能量守恒 ：出射光线的能量永远不能超过入射光线的能量（发光面除外）
+
+- 根据能量守恒，随着粗糙度的上升镜面反射区域的会增加，但是镜面反射的亮度却会下降
+- 反射/镜面反射 + 折射/漫反射 = 1.0（光强度）
+
+
+
+传统的微平面模型的问题：太过于平滑，不能表现小于一个像素的几何级的细节
+
+![](./images/microfacet.jpg)
+
+
+
+### 5.4 Cook-Torrance BRDF 模型
 
 $$
 f_r = k_d\cdot f_{lambert} + k_s \cdot f_{cook-torrance}
@@ -365,18 +409,15 @@ $$
 
 
 
-### 5.4 PBR 材质
 
-- 反照率 Albedo 贴图
-  为每一个金属的纹素（Texel 纹理像素）指定表面颜色或者基础反射率，只包含表面的颜色
-- 法线贴图
-- 金属度 Metallic 贴图
-  逐个纹素的指定该纹素是不是金属质地的
-- 粗糙度 Roughness / 光滑度 Smoothness 贴图
-  以纹素为单位指定某个表面有多粗糙，粗糙度 = 1.0 – 光滑度
-- 环境光遮蔽 Ambient Occlusion 贴图
-  为表面和周围潜在的几何图形指定了一个额外的阴影因子
-  网格/表面的环境遮蔽贴图要么通过手动生成，要么由 3D 建模软件自动生成
+
+## 6. 基于图像的照明 IBL
+
+### 6.1 IBL 漫反射
+
+
+
+### 6.2 IBL 镜面反射
 
 
 
@@ -421,7 +462,6 @@ L_e &= f(v, l)E_e \\
 &= f(v, l){\phi \over{4 \pi \space distance^2}}<n \cdot l>
 \end{align}
 $$
-
 
 **光的衰减**
 
@@ -501,6 +541,8 @@ $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作�
 $$
 L_e(v) = \int _\Omega f(l,v,\Theta) L(l)dl
 $$
+
+
 
 
 
@@ -844,5 +886,11 @@ $$
 - [OGL-Cascaded Shadow Mapping](http://ogldev.atspace.co.uk/www/tutorial49/tutorial49.html)
 - [MSDN-Cascaded Shadow Maps](https://docs.microsoft.com/zh-cn/windows/win32/dxtecharts/cascaded-shadow-maps?redirectedfrom=MSDN)
 - [彻底看懂 PBR/BRDF 方程](https://zhuanlan.zhihu.com/p/158025828)
+- [PBR 材质系统原理简介](https://blog.csdn.net/weixin_42660918/article/details/80989738)
+- [BRDF 材质贴图](https://blog.csdn.net/mconreally/article/details/50629098)
+- [BRDF（双向反射分布函数）](https://zhuanlan.zhihu.com/p/21376124)
+- [PBR 材质基础概念，限制及未来发展](https://blog.csdn.net/qq_42145322/article/details/100621811)
+- [【Unity】Compute Shader 计算 BRDF 存储到纹理](https://www.cnblogs.com/jaffhan/p/7389450.html)
 - [Create icosphere mesh by code](http://blog.andreaskahler.com/2009/06/creating-icosphere-mesh-in-code.html)
+- [概率密度函数(PDF)](https://www.jianshu.com/p/70b188d512aa)
 

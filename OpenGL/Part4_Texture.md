@@ -25,7 +25,6 @@ Color &= f_i * Color_i + f_j * Color_j + f_k * Color_k
 \end{align}
 $$
 
-
 ## 2. 3D 颜色插值
 
 方法如下：

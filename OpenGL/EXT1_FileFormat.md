@@ -175,4 +175,5 @@ SVG 使用 XML 语法编写，并且可以在文本工具里修改（可以使�
 - [TGA 文件格式解析](http://www.twinklingstar.cn/2013/471/tga-file-format/)
 - [三维文件格式知多少 ](http://www.bgteach.com/article/132)
 - [三维软件知多少](http://www.bgteach.com/article/40)
+- [图片文件格式知多少 | jpeg、png、pdf、tga、tif、svg、esp、exr、hdr...](https://www.bgteach.com/article/133)
 
