@@ -301,6 +301,7 @@ glDeleteBuffers(1, &pboIds);
 普通加载纹理的方式
 
 ```c
+// Data is from CPU memory
 glBindTexture(GL_TEXTURE_2D, textureId);
 glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, data);
 ```
@@ -312,7 +313,7 @@ glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA, width, height, 0, GL_BGRA, GL_UNSIGNED_B
 glBindTexture(GL_TEXTURE_2D, textureId);
 glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboIds[index]);
 
-// copy pixels from PBO to texture object
+// copy pixels from PBO to texture object so the last param is 0 not data
 // Use offset instead of pointer
 glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, 0);
 
@@ -446,6 +447,9 @@ glBindTexture(GL_TEXTURE_2D, 0);
 例子
 
 ```c
+// Open MSAA
+glEnable(GL_MULTISAMPLE); // default is enable
+
 // create a 4x MSAA renderbuffer object for colorbuffer
 int msaa = 4;
 GLuint rboColorId;
@@ -481,6 +485,8 @@ glFramebufferRenderbuffer(GL_FRAMEBUFFER,       // 1. fbo target: GL_FRAMEBUFFER
 
 
 
+### 4.1 多重采样 转 单采样
+
 **多重采样后 framebuffer 的渲染结果不能直接使用，需要转换成 single-sample image 才能使用**
 
 转换例子
@@ -497,6 +503,22 @@ glBlitFramebuffer(0, 0, width, height,             // src rect
                   GL_COLOR_BUFFER_BIT,             // buffer mask(which buffers are copied)
                   GL_LINEAR);                      // scale filter
 ```
+
+
+
+### 4.2 从 shader 里获取多重采样结果
+
+```c
+// shader 里自定义多重纹理采样
+
+// 1. 使用 sampler2DMS 而不是 sampler2D
+uniform sampler2DMS screenTextureMS; 
+
+// 2. 使用 texelFetch
+vec4 colorSample = texelFetch(screenTextureMS, TexCoords, 3);  // 取第4个子样本
+```
+
+
 
 
 

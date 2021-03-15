@@ -139,6 +139,17 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
 
 
 
+## 7. 相机矩阵
+
+![](./images/camera_axes.png)
+
+**lookat 矩阵** 
+
+- 作用：将世界空间坐标  乘以 lookat 矩阵 便是 相机的 观察空间
+- 构成：[相机 x 轴，相机 y 轴，相机 x 轴，标准化列向量 w]
+
+
+
 
 
 
@@ -174,13 +185,20 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
 
 - 模板测试
   ![](./images/stencil_test.png)
+  
+- Pre-Z：在顶点着色之前（上一批次的渲染的单独 pass）
+  软件实现，Pre-Z 弥补了 Early-Z 不能剔除透明物体的问题，提前将透明物体剔除避免 overdraw
+
+- Early-Z：在顶点着色和片源着色之间
+  需要硬件支持，Early-Z 在 Alpha Test 或者 Depth modify 会失效（只能提前判断不透明物体来剔除物体）
+
 - 深度测试
   深度缓冲中每个像素（或超采样）都有对应的值（通过三角形顶点深度信息差值得到）
 因为每个像素都有深度，所以不会存在两个图元交叉的深度问题
   ![](./images/depth_test.png)
   
 - alpha 混合
-  开启 alpha 混合会关闭深度写入(如果不关闭后面片元将会被踢出，无法进入到 alpha 混合缓解混合颜色)
+  开启 alpha 混合会关闭深度写入（如果不关闭后面片元将会被踢出，无法进入到 alpha 混合缓解混合颜色）
   但是深度测试依旧可以进行，**深度值对 alpha 混合来说是只读的**
 
   为了正确的做 alpha 混合，一般流程如下
@@ -204,9 +222,9 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
   $$
   
 
-  开启 alpha 预乘的混合方式（假设：透明物体 B 在 A 前面）
+开启 alpha 预乘的混合方式（假设：透明物体 B 在 A 前面）
   透明图像边缘是黑色，为了防止在混合多个透明物体时 alpha 遮罩外的颜色由于不是黑色 0，而带来的混合颜色的色差
-  $$
+$$
   \begin{align}
   A' &= (\alpha_A A_r,\alpha_A A_g,\alpha_A A_b, \alpha_A)\\
   B' &= (\alpha_B B_r,\alpha_B B_g,\alpha_B B_b, \alpha_B)\\
@@ -214,7 +232,7 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
   \alpha_M &= \alpha_B + (1-\alpha_B)\alpha_A \\
   M_{rgb} &= M'_{rgb} / \alpha _M
   \end{align}
-  $$
+$$
   ![](./images/alpha_multiply.png)
 
 
@@ -230,8 +248,6 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
 ![](images/coordinate.png)
 
 **投影会改变空间的旋向性**：空间从**右手坐标系**，经过投影转换为**左手坐标系**，离相机越远， Z 只越大
-
-
 
 **屏幕坐标和像素的映射关系**
 
@@ -342,4 +358,5 @@ NVIDIA 的 CG（C for Graphic）
 9. [Stateless, layered, multi-threaded rendering](https://blog.molecular-matters.com/2014/11/06/stateless-layered-multi-threaded-rendering-part-1/)
 10. [Game Programming Patterns](http://gameprogrammingpatterns.com/contents.html)
 11. [Shader detached program](https://github.com/google/gapid/issues/398)
+12. [EarlyZ 和 PreZ 的区别](https://zhuanlan.zhihu.com/p/299798664)
 

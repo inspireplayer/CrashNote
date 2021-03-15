@@ -692,6 +692,7 @@ N 为法线向量，$M_n$ 为对应切线变换的 法线变换矩阵
 - 平移变换不影响向量的方向，在法线变换时不需要考虑平移变换
 - 只有旋转矩阵是正交矩阵
 统一缩放会导致每一行/列的向量长度不为 1，从而不是正交矩阵
+- 根据点积计算公式，若 T、N 均为列向量，则 $T \cdot N = T^T * N$
 
 $$
 \begin{align}
@@ -709,6 +710,23 @@ $$
 
 
 
+#### 3.5.1 Gram-Schmidt 格拉姆-施密特正交化
+
+标准正交化两个线性无关的向量 a 和 b，让它们变成 $q_1$ 和 $q_2$ 
+
+![](./images/GramSchmidt.jpg)
+
+设 B 使得 $a \bot B$， p 是 b 在 a 上的投影
+$$
+\begin{align}
+p &= normalize(a) \cdot b * normalize(a) \\
+B &= b - p = b - normalize(a) \cdot b * normalize(a)
+\end{align}
+$$
+
+
+
+
 # 引用
 
 - [齐次坐标解释平行线相交](http://www.songho.ca/math/homogeneous/homogeneous.html)
@@ -716,4 +734,5 @@ $$
 - [齐次坐标的理解](http://www.cnblogs.com/csyisong/archive/2008/12/09/1351372.html)
 - [投影矩阵的推导](http://www.songho.ca/opengl/gl_projectionmatrix.html)
 - [Depth Precision Visualized](https://developer.nvidia.com/content/depth-precision-visualized)
+- [线性代数20——格拉姆-施密特正交化](https://zhuanlan.zhihu.com/p/125646432)
 

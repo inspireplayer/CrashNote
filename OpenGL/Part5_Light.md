@@ -248,6 +248,7 @@ PBR 满足以下条件
 - <u>金属度 Metallic 贴图</u>
   导体有更强的反射，导体的反射光颜色会与 Albedo（固有色）不同
   正式因为导体和非导体如此的不同，通常用金属度来控制一个材质是否为金属
+  金属度可以用灰度值，也可以用二值图来表示物体表面具有金属特性的位置
 - <u>法线 Normal 贴图</u>
   比微表平面颗粒要大的物体表面细节描述
 - <u>粗糙度 Roughness / 光滑度 Smoothness 贴图</u>
@@ -350,7 +351,7 @@ $$
 
 2. **F**resnel reflection 菲涅耳反射
 
-   用来描述不同的表面角下表面所**反射的光线所占的比率**
+   用来描述不同的表面角下表面所**反射的光线所占折射和反射的比率**
    菲涅耳反射：观察方向和物体表面法线的夹角越大，反射效果越明显
 
    应用：菲涅耳反射计算的强度系数 * 噪声纹理 **可以表现出水波的效果**
@@ -409,15 +410,281 @@ $$
 
 
 
+## 6. PBR 计算简化代码实现
+
+```c
+// 方法一：实时计算实现 FS
+#version 330 core
+out vec4 FragColor;
+in vec2 TexCoords;
+in vec3 WorldPos;
+in vec3 Normal;
+
+// material parameters
+uniform vec3 albedo;
+uniform float metallic;
+uniform float roughness;
+uniform float ao;
+
+// lights
+uniform vec3 lightPositions[4];
+uniform vec3 lightColors[4];
+
+uniform vec3 camPos;
+
+const float PI = 3.14159265359;
+
+float DistributionGGX(vec3 N, vec3 H, float roughness) {
+    float a = roughness*roughness;
+    float a2 = a*a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH*NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+	  // prevent divide by zero for roughness=0.0 and NdotH=1.0
+    return nom / max(denom, 0.0000001); 
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r*r) / 8.0;
+
+    float nom   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
+
+void main() {		
+    vec3 N = normalize(Normal);
+    vec3 V = normalize(camPos - WorldPos);
+
+    // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
+    // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
+    vec3 F0 = vec3(0.04); 
+    F0 = mix(F0, albedo, metallic);
+
+    // reflectance equation
+    vec3 Lo = vec3(0.0);
+    for(int i = 0; i < 4; ++i) {
+        // calculate per-light radiance
+        vec3 L = normalize(lightPositions[i] - WorldPos);
+        vec3 H = normalize(V + L);
+        float distance = length(lightPositions[i] - WorldPos);
+        float attenuation = 1.0 / (distance * distance);
+        vec3 radiance = lightColors[i] * attenuation;
+
+        // Cook-Torrance BRDF
+        float NDF = DistributionGGX(N, H, roughness);   
+        float G   = GeometrySmith(N, V, L, roughness);      
+        vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
+           
+        vec3 nominator    = NDF * G * F; 
+        float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+       // prevent divide by zero for NdotV=0.0 or NdotL=0.0
+        vec3 specular = nominator / max(denominator, 0.001); 
+        
+        // kS is equal to Fresnel
+        vec3 kS = F;
+        // for energy conservation, the diffuse and specular light can't
+        // be above 1.0 (unless the surface emits light); to preserve this
+        // relationship the diffuse component (kD) should equal 1.0 - kS.
+        vec3 kD = vec3(1.0) - kS;
+        // multiply kD by the inverse metalness such that only non-metals 
+        // have diffuse lighting, or a linear blend if partly metal (pure metals
+        // have no diffuse light).
+        kD *= 1.0 - metallic;	  
+
+        // scale light by NdotL
+        float NdotL = max(dot(N, L), 0.0);        
+
+        // add to outgoing radiance Lo
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+    }   
+    
+    // ambient lighting (note that the next IBL tutorial will replace 
+    // this ambient lighting with environment lighting).
+    vec3 ambient = vec3(0.03) * albedo * ao;
+
+    vec3 color = ambient + Lo;
+
+    // HDR tonemapping
+    color = color / (color + vec3(1.0));
+    // gamma correct
+    color = pow(color, vec3(1.0/2.2)); 
+
+    FragColor = vec4(color, 1.0);
+}
+
+// 方法二：根据贴图计算 FS
+#version 330 core
+out vec4 FragColor;
+in vec2 TexCoords;
+in vec3 WorldPos;
+in vec3 Normal;
+
+// material parameters
+uniform sampler2D albedoMap;
+uniform sampler2D normalMap;
+uniform sampler2D metallicMap;
+uniform sampler2D roughnessMap;
+uniform sampler2D aoMap;
+
+// lights
+uniform vec3 lightPositions[4];
+uniform vec3 lightColors[4];
+
+uniform vec3 camPos;
+
+const float PI = 3.14159265359;
+
+// Easy trick to get tangent-normals to world-space to keep PBR code simplified.
+// Don't worry if you don't get what's going on; you generally want to do normal 
+// mapping the usual way for performance anways; I do plan make a note of this 
+// technique somewhere later in the normal mapping tutorial.
+vec3 getNormalFromMap() {
+    vec3 tangentNormal = texture(normalMap, TexCoords).xyz * 2.0 - 1.0;
+
+    vec3 Q1  = dFdx(WorldPos);
+    vec3 Q2  = dFdy(WorldPos);
+    vec2 st1 = dFdx(TexCoords);
+    vec2 st2 = dFdy(TexCoords);
+
+    vec3 N   = normalize(Normal);
+    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
+    vec3 B  = -normalize(cross(N, T));
+    mat3 TBN = mat3(T, B, N);
+
+    return normalize(TBN * tangentNormal);
+}
+
+float DistributionGGX(vec3 N, vec3 H, float roughness) {
+    float a = roughness*roughness;
+    float a2 = a*a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH*NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return nom / denom;
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r*r) / 8.0;
+
+    float nom   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
+
+void main() {		
+    vec3 albedo     = pow(texture(albedoMap, TexCoords).rgb, vec3(2.2));
+    float metallic  = texture(metallicMap, TexCoords).r;
+    float roughness = texture(roughnessMap, TexCoords).r;
+    float ao        = texture(aoMap, TexCoords).r;
+
+    vec3 N = getNormalFromMap();
+    vec3 V = normalize(camPos - WorldPos);
+
+    // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
+    // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
+    vec3 F0 = vec3(0.04); 
+    F0 = mix(F0, albedo, metallic);
+
+    // reflectance equation
+    vec3 Lo = vec3(0.0);
+    for(int i = 0; i < 4; ++i) {
+        // calculate per-light radiance
+        vec3 L = normalize(lightPositions[i] - WorldPos);
+        vec3 H = normalize(V + L);
+        float distance = length(lightPositions[i] - WorldPos);
+        float attenuation = 1.0 / (distance * distance);
+        vec3 radiance = lightColors[i] * attenuation;
+
+        // Cook-Torrance BRDF
+        float NDF = DistributionGGX(N, H, roughness);   
+        float G   = GeometrySmith(N, V, L, roughness);      
+        vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
+           
+        vec3 nominator    = NDF * G * F; 
+        float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.001; // 0.001 to prevent divide by zero.
+        vec3 specular = nominator / denominator;
+        
+        // kS is equal to Fresnel
+        vec3 kS = F;
+        // for energy conservation, the diffuse and specular light can't
+        // be above 1.0 (unless the surface emits light); to preserve this
+        // relationship the diffuse component (kD) should equal 1.0 - kS.
+        vec3 kD = vec3(1.0) - kS;
+        // multiply kD by the inverse metalness such that only non-metals 
+        // have diffuse lighting, or a linear blend if partly metal (pure metals
+        // have no diffuse light).
+        kD *= 1.0 - metallic;	  
+
+        // scale light by NdotL
+        float NdotL = max(dot(N, L), 0.0);        
+
+        // add to outgoing radiance Lo
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+    }   
+    
+    // ambient lighting (note that the next IBL tutorial will replace 
+    // this ambient lighting with environment lighting).
+    vec3 ambient = vec3(0.03) * albedo * ao;
+    
+    vec3 color = ambient + Lo;
+
+    // HDR tonemapping
+    color = color / (color + vec3(1.0));
+    // gamma correct
+    color = pow(color, vec3(1.0/2.2)); 
+
+    FragColor = vec4(color, 1.0);
+}
+```
 
 
-## 6. 基于图像的照明 IBL
 
-### 6.1 IBL 漫反射
+## 7. 基于图像的照明 IBL
+
+### 7.1 IBL 漫反射
 
 
 
-### 6.2 IBL 镜面反射
+### 7.2 IBL 镜面反射
 
 
 
@@ -605,14 +872,47 @@ $$
 
 1. 渲染深度贴图（阴影贴图）
    以光的位置为视角进行渲染，我们能看到的东西都将被点亮，看不见的是阴影
-2. 渲染场景
-   根据生成的深度贴图，通过将当前视角的坐标变换为深度贴图的坐标（光源头空间坐标）来计算片段是否在阴影之中
+   以光源的类型选择 正交投影 或者 透视投影
+   
+   ```c
+   GLuint depthMap;
+   glGenTextures(1, &depthMap);
+   glBindTexture(GL_TEXTURE_2D, depthMap);
+   glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 
+                SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+   ```
+   
+2. 深度贴图纹理坐标计算
+   世界空间坐标 -> 光源空间坐标 -> 裁切空间的标准化设备坐标-> 根据深度贴图和坐标求出阴影深度值
 
+3. 计算片段是否在阴影之中：若当前坐标的 Z 值比深度贴图的值大，则物体在阴影后面，物体有阴影
 
+   ```c
+   // shadow 只能为 0 或 1
+   // 阴影中只有环境光，没有高光反射和漫反射
+   vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
+   ```
+
+   
 
 重点：
 
-1. 获取阴影贴图的值为透视投影下的非线性深度值
+1. 不使用颜色缓冲，不包含颜色缓冲的帧缓冲是不完整的，因此只能禁止颜色缓冲
+并且在片源着色器里什么都不干
+   
+   ```c
+   glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+   glDrawBuffer(GL_NONE);
+   glReadBuffer(GL_NONE);
+   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+   ```
+   
+2. 获取阴影贴图的值为透视投影下的非线性深度值
 
    **解决方案**：将非线性深度值通过透视投影的逆变换转换为线性深度，[投影矩阵](../LinearAlgebra/Part1_Matrix.md)
    $$
@@ -624,26 +924,7 @@ $$
    \end{align}
    $$
    
-2. 阴影贴图有一定的范围，无法覆盖所有场景
-
-   ![](./images/shadow_texture_scope.png)
-
-   **解决方案**：让阴影贴图范围外的没有阴影
-   <u>边缘超出阴影贴图</u>：将阴影贴图的纹理环绕选项设置为 GL_CLAMP_TO_BORDER，给边框设一个较亮的白色
-   <u>深度 Z 超出阴影贴图裁剪范围</u>：将在光源空间坐标下深度大于 1 的阴影去掉
-
-   
-
-3. 阴影贴图受限于分辨率，画出的阴影有锯齿感
-
-   ![](./images/shadow_soft.png)
-
-   **解决方案**：PCF（percentage-closer filtering）
-   计算阴影时，多次进行深度图的采样计算，给做一次均值滤波，来模糊阴影边缘的锯齿
-
-   
-
-4. 在**距离光源比较远**时，多个片段会从深度贴图的同一个值中采样
+3. 在**距离光源比较远**时，多个片段会从深度贴图的同一个值中采样
    当光以一定角度朝向物体表面时，物体表面会产生明显的线条样式
 
    ![](./images/shadow_line.png)
@@ -651,21 +932,51 @@ $$
    **解决方案**：阴影偏移（shadow bias）
    根据对阴影贴图应用一个**根据物体表面朝向和光线的角度**变化的偏移量
 
+   ```c
+   float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+   float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
+   ```
+
    ![](./images/shadow_acne_bias.png)
 
    这样会带来一个问题 —— 悬浮
 
    ![](./images/shadow_peter_panning.png)
 
-   解决悬浮的一种方法：通过在生成阴影深度贴图时采用正面剔除的方式，只保留实体物体阴影深度，地板的深度会去掉
+   解决悬浮的一种方法：通过在生成阴影深度贴图时采用正面剔除的方式，只保留实体物体背面阴影深度，这样阴影的深度更真实，由于偏移出现的部分多余的阴影也会由于阴影深度的更精确而消失，但是地板的深度会去掉
+
+   
+
+4. 阴影贴图有一定的范围，无法覆盖所有场景
+
+   ![](./images/shadow_texture_scope.png)
+
+   **解决方案**：让阴影贴图范围外的没有阴影
+
+   1. <u>采样位置超出深度贴图边缘</u>
+      将阴影贴图的纹理环绕选项设置为 `GL_CLAMP_TO_BORDER`，给边框设一个较亮的白色（最大深度 1）
+
+   2. <u>深度 Z 的范围超过远平面的裁剪范围 -1.0 ～ 1.0</u>
+      首先在片源着色器里判断深度值是否超出 1.0，如果超出，强制设置为无阴影
+
+      
+
+5. 阴影贴图受限于分辨率，画出的阴影有锯齿感
+
+   ![](./images/shadow_soft.png)
+
+   **解决方案**：PCF（percentage-closer filtering）
+   计算阴影时，多次进行深度图的采样计算，给做一次 BoxBlur 均值滤波，来模糊阴影边缘的锯齿
 
 
 
 ## 2. 级联式纹理映射 Cascaded Shadow Map（CSM）
 
+**阴影贴图**方法对于**大型场景**渲染显得力不从心，很容易出现**阴影抖动**和**锯齿边缘**现象
+**Cascaded Shadow Maps(CSM)** 方法根据**对象**到**观察者**的距离提供**不同分辨率**的**深度纹理**来解决上述问题
 
-
-
+1. 将**相机**的**视锥体**分割成若干部分，然后为分割的每一部分生成**独立**的**深度贴图**
+2. 根据物体在场景中的位置对位置附近的两张深度贴图进行采样，根据 深度 距离来对两个采样进行线性插值
 
 
 
@@ -676,17 +987,81 @@ $$
 方法：
 
 1. 渲染深度**立方体**贴图
+   将立方体贴图 GL_TEXTURE_CUBE_MAP 绑定到 FBO 上，通过几何着色器，一次绘制 6 个面的贴图
+   顶点着色器：将顶点变换到世界空间
+   几何着色器：将所有世界空间的顶点变换到 6 个不同的光空间（输入：一个三角形的 3 个顶点）
+
+   ```c
+   // 几何着色器
+   #version 330 core
+   layout (triangles) in;
+   layout (triangle_strip, max_vertices=18) out;
+   
+   uniform mat4 shadowMatrices[6];
+   out vec4 FragPos; // FragPos from GS (output per emitvertex)
+   
+   void main() {
+       for(int face = 0; face < 6; ++face) {
+           gl_Layer = face; // built-in variable that specifies to which face we render.
+           for(int i = 0; i < 3; ++i) { // for each triangle's vertices
+               FragPos = gl_in[i].gl_Position;
+               gl_Position = shadowMatrices[face] * FragPos;
+               EmitVertex();
+           }    
+           EndPrimitive();
+       }
+   }
+   
+   // 片源着色器
+   #version 330 core
+   in vec4 FragPos;
+   
+   uniform vec3 lightPos;
+   uniform float far_plane;
+   
+   void main() {
+       // get distance between fragment and light source
+       float lightDistance = length(FragPos.xyz - lightPos);
+   
+       // map to [0;1] range by dividing by far_plane
+       lightDistance = lightDistance / far_plane;
+   
+       // write this as modified depth
+       gl_FragDepth = lightDistance;
+   }
+   ```
+
+   
+
 2. 渲染场景
+   为了确保 6 个面的深度贴图边缘都对齐，设置透视投影的视角为 90 度
+
+   ```c
+   float ShadowCalculation(vec3 fragPos) {
+       // Get vector between fragment position and light position
+       vec3 fragToLight = fragPos - lightPos;
+       // Use the fragment to light vector to sample from the depth map    
+       float closestDepth = texture(depthMap, fragToLight).r;
+       // It is currently in linear range between [0,1]. 
+       // Let's re-transform it back to original depth value
+       closestDepth *= far_plane;
+       // Now get current linear depth as the length between the fragment and light position
+       float currentDepth = length(fragToLight);
+       // Now test for shadows
+       float bias = 0.05; 
+       // We use a much larger bias since depth is now in [near_plane, far_plane] range
+       float shadow = currentDepth -  bias > closestDepth ? 1.0 : 0.0;
+   
+       return shadow;
+   }
+   ```
+
 
 ![](./images/shadow_point.png)
 
 
 
-
-
 ## 4. 透明物体的阴影
-
-
 
 
 
@@ -700,24 +1075,259 @@ $$
 
 方法：在三维物体已经生成二维图片之后计算遮蔽因子
 
-1. 几何阶段：渲染当前相机范围的 顶点、法线、深度 到 G-Buffer（Geometry Buffer）
-   注意：纹理采样使用 clamp_to_edge 方法，防止采样到在屏幕空间中纹理默认坐标区域之外的深度值
+1. 几何阶段：准备输入数据
+**1.1 渲染当前相机范围的 顶点、法线、线性深度 到观察空间下的 G-Buffer（Geometry Buffer）**
+   注意：纹理采样使用 `GL_CLAMP_TO_EDGE` 方法，防止采样到在屏幕空间中纹理默认坐标区域之外的深度值
+   
+   ```c
+   // 几何着色器 VS
+   #version 330 core
+   layout (location = 0) in vec3 position;
+   layout (location = 1) in vec3 normal;
+   layout (location = 2) in vec2 texCoords;
+   
+   out vec3 FragPos;
+   out vec2 TexCoords;
+   out vec3 Normal;
+   
+   uniform mat4 model;
+   uniform mat4 view;
+   uniform mat4 projection;
+   
+   void main() {
+       vec4 viewPos = view * model * vec4(position, 1.0f);
+       FragPos = viewPos.xyz; // 观察空间
+       gl_Position = projection * viewPos;
+       TexCoords = texCoords;
+       
+       mat3 normalMatrix = transpose(inverse(mat3(view * model)));
+       Normal = normalMatrix * normal; // 观察空间 -> 切线空间
+   }
+   
+   // 几何着色器 FS
+   #version 330 core
+   layout (location = 0) out vec4 gPositionDepth;
+   layout (location = 1) out vec3 gNormal;
+   layout (location = 2) out vec4 gAlbedoSpec;
+   
+   in vec2 TexCoords;
+   in vec3 FragPos;
+   in vec3 Normal;
+   
+   const float NEAR = 0.1; // 投影矩阵的近平面
+   const float FAR = 50.0f; // 投影矩阵的远平面
+   float LinearizeDepth(float depth) {
+       float z = depth * 2.0 - 1.0; // 回到NDC
+       return (2.0 * NEAR * FAR) / (FAR + NEAR - z * (FAR - NEAR));    
+   }
+   
+   void main() {    
+       // 1. 储存片段的位置矢量到第一个 G 缓冲纹理
+       gPositionDepth.xyz = FragPos;
+       // 2. 储存线性深度到 gPositionDepth 的 alpha 分量
+       gPositionDepth.a = LinearizeDepth(gl_FragCoord.z); 
+       // 3. 储存法线信息到 G 缓冲
+       gNormal = normalize(Normal);
+       // 4. 储存漫反射颜色
+       gAlbedoSpec.rgb = vec3(0.95);
+   }
+   ```
+   
+   **1.2 计算法向半球采样在切线空间的位置**
+   在**切线空间**内，距离**每个片源**半球形范围内随机取固定数量的采样坐标，一般会将采样点靠近分布
+   
+      ```c
+   // 在应用程序初始化中调用
+   // 随机浮点数，范围0.0 - 1.0
+   std::uniform_real_distribution<GLfloat> randomFloats(0.0, 1.0);
+   std::default_random_engine generator;
+   std::vector<glm::vec3> ssaoKernel;
+   
+   GLfloat lerp(GLfloat a, GLfloat b, GLfloat f) {
+     return a + f * (b - a);
+   }
+   
+   for (GLuint i = 0; i < 64; ++i) {
+     // 半球采样点 x，y ~ [-1, 1], z ~ [0, 1]
+     glm::vec3 sample(
+       randomFloats(generator) * 2.0 - 1.0, 
+       randomFloats(generator) * 2.0 - 1.0, 
+       randomFloats(generator)
+     );
+     sample = glm::normalize(sample);
+     sample *= randomFloats(generator);
+     GLfloat scale = GLfloat(i) / 64.0;
+     // 将更多的注意放在靠近真正片段的遮蔽上，也就是将核心样本靠近原点分布
+     scale = lerp(0.1f, 1.0f, scale * scale);
+     ssaoKernel.push_back(sample);  
+   }
+      ```
+   
+   **1.3 创建随机核心旋转噪声纹理**
+   半球内采样位置会被所有片源共享使用，需要通过随机转动来确保在较低采样数量的情况下有较好的采样效果
+   由于，对场景中每一个片段创建一个随机旋转向量，会占用大量内存
+   因此，创建一个小的随机旋转向量纹理（4X4）<u>像瓷砖一样反复平铺</u>在屏幕上
+   
+      ```c
+   // 纹理生成
+   std::vector<glm::vec3> ssaoNoise;
+   for (GLuint i = 0; i < 16; i++) {
+     glm::vec3 noise(
+       randomFloats(generator) * 2.0 - 1.0, 
+       randomFloats(generator) * 2.0 - 1.0, 
+       0.0f); // 围绕 Z 轴偏移旋转，因此 Z 轴不需要有任何变化
+     ssaoNoise.push_back(noise);
+   }
+      ```
+   
 2. 光照处理阶段：计算遮蔽因子
-   1. 计算法向半球采样位置
-      在切线空间内，距离每个顶点一定范围内（半球形范围，法向量 0.0 ~ 1.0）随机取固定数量的像素值
-      一般会将采样点靠近原点（每个顶点）分布
-   2. 创建随机核心转动噪声纹理
-      创建一个小的随机旋转向量纹理(4X4)平铺在屏幕上（对场景中每一个片段创建一个随机旋转向量，会占用大量内存）
-   3. 检测深度范围
-      检测深度如果在法向半球采样半径内，则被保留，作为影响遮蔽因子的因素
-   4. 比较深度
-      法向半球检测的采样深度如果大于观察视角的深度，则作为影响遮蔽因子的因素
-   5. 模糊环境遮蔽结果
-      重复的噪声纹理再上一步的图中清晰可见，为了创建一个光滑的环境遮蔽结果，需要用 box bluer 来模糊环境遮蔽纹理
-   6. 应用在光照计算中
-      光照模型中的环境光 = 原来的环境光常量 * 遮蔽因子（环境遮蔽纹理中）
 
+   **2.1 SSAO 阶段**
+   SSAO着色器在 2D 的铺屏四边形上运行，它对于每一个生成的片段计算遮蔽值（为了在最终的光照着色器中使用）。由于环境遮蔽的结果是一个灰度值，只需要纹理的红色分量，所以将颜色缓冲的内部格式设置为 `GL_RED`
 
+   ```c
+   #version 330 core
+   out float FragColor;
+   in vec2 TexCoords;
+   
+   uniform sampler2D gPositionDepth;
+   uniform sampler2D gNormal;
+   uniform sampler2D texNoise;
+   
+   uniform vec3 samples[64];
+   uniform mat4 projection;
+   
+   // 最好设置为 uniform
+   int kernelSize = 64;
+   float radius = 1.0;
+   
+   void main() {
+       // Get input for SSAO algorithm
+       vec3 fragPos = texture(gPositionDepth, TexCoords).xyz;
+       vec3 normal = texture(gNormal, TexCoords).rgb;
+     
+     	// 为了将 [0,1] 的屏幕纹理坐标转化为平铺的噪声纹理坐标 [0,1]
+   		// 1. 获取随机旋转向量这里需要一个缩放值
+   		const vec2 noiseScale = vec2(800.0f/4.0f, 600.0f/4.0f); // 屏幕 = 800x600
+       vec3 randomVec = texture(texNoise, TexCoords * noiseScale).xyz;
+     
+       // 2. 根据随机旋转向量创建正交坐标
+       vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
+       vec3 bitangent = cross(normal, tangent);
+       mat3 TBN = mat3(tangent, bitangent, normal);
+     
+       // 3. 根据每个片源共用的半球体内采样数量计算遮蔽因子
+       float occlusion = 0.0;
+       for(int i = 0; i < kernelSize; ++i)
+       {
+           // 3.1 获取半球体内每个采样点位置（切线空间内）
+           vec3 sample = TBN * samples[i];     // 切线 -> 观察空间
+           sample = fragPos + sample * radius; // 根据偏移步长和方向，计算偏移后的采样点
+           
+           // 3.2 将观察空间的采样点投影到屏幕上
+           vec4 offset = projection * vec4(sample, 1.0); // from view to clip-space
+           offset.xyz /= offset.w; 											// perspective divide
+           offset.xyz = offset.xyz * 0.5 + 0.5;          // transform to range 0.0 - 1.0
+           
+           // 3.3 获取采样点对应周围采样的深度值
+           float sampleDepth = -texture(gPositionDepth, offset.xy).w;
+           
+           // 3.4 检测周围采样的深度如果在法向半球采样半径内，则被保留
+           // 从而避免：当检测一个靠近表面边缘的片段时，它将会考虑测试表面之下的表面的深度值
+           float rangeCheck = smoothstep(0.0, 1.0, radius / abs(fragPos.z - sampleDepth ));
+         
+           // 3.5 若周围采样的深度比当前观察深度大，则累加遮蔽因子的值
+           occlusion += (sampleDepth >= sample.z ? 1.0 : 0.0) * rangeCheck;           
+       }
+     
+       // 4. 均值化遮蔽因子
+       occlusion = 1.0 - (occlusion / kernelSize);
+       
+       FragColor = occlusion;
+   }
+   ```
+
+   **2.2 模糊环境遮蔽结果**
+   重复的噪声纹理再上一步的图中清晰可见，为了创建一个光滑的环境遮蔽结果，需要用 box bluer 来模糊环境遮蔽纹理
+
+   ```c
+   // 需要额外创建 FBO 在存储这种后处理效果
+   #version 330 core
+   in vec2 TexCoords;
+   
+   out float fragColor;
+   
+   uniform sampler2D ssaoInput;
+   const int blurSize = 4; // use size of noise texture (4x4)
+   
+   void main() {
+      vec2 texelSize = 1.0 / vec2(textureSize(ssaoInput, 0));
+      float result = 0.0;
+      for (int x = 0; x < blurSize; ++x) {
+         for (int y = 0; y < blurSize; ++y) {
+            vec2 offset = (vec2(-2.0) + vec2(float(x), float(y))) * texelSize;
+            result += texture(ssaoInput, TexCoords + offset).r;
+         }
+      }
+    
+      fragColor = result / float(blurSize * blurSize);
+   }
+   ```
+
+   **2.3 应用遮蔽因子在光照计算中**
+   光照模型中的环境光 = 原来的环境光常量 * 遮蔽因子（环境遮蔽纹理中）
+
+   ```c
+   #version 330 core
+   out vec4 FragColor;
+   in vec2 TexCoords;
+   
+   uniform sampler2D gPositionDepth;
+   uniform sampler2D gNormal;
+   uniform sampler2D gAlbedo;
+   uniform sampler2D ssao;
+   
+   struct Light {
+       vec3 Position;
+       vec3 Color;
+   
+       float Linear;
+       float Quadratic;
+       float Radius;
+   };
+   uniform Light light;
+   
+   void main() {             
+       // 从 G 缓冲中提取数据
+       vec3 FragPos = texture(gPositionDepth, TexCoords).rgb;
+       vec3 Normal = texture(gNormal, TexCoords).rgb;
+       vec3 Diffuse = texture(gAlbedo, TexCoords).rgb;
+   	  // BoxBlur 后的遮蔽因子
+       float AmbientOcclusion = texture(ssao, TexCoords).r;
+   
+       // Blinn-Phong (观察空间中)
+       vec3 ambient = vec3(0.3 * AmbientOcclusion); // 这里我们加上遮蔽因子
+       vec3 lighting  = ambient; 
+       vec3 viewDir  = normalize(-FragPos); // Viewpos 为 (0.0.0)，在观察空间中
+       // 漫反射
+       vec3 lightDir = normalize(light.Position - FragPos);
+       vec3 diffuse = max(dot(Normal, lightDir), 0.0) * Diffuse * light.Color;
+       // 镜面
+       vec3 halfwayDir = normalize(lightDir + viewDir);  
+       float spec = pow(max(dot(Normal, halfwayDir), 0.0), 8.0);
+       vec3 specular = light.Color * spec;
+       // 衰减
+       float dist = length(light.Position - FragPos);
+       float attenuation = 1.0 / (1.0 + light.Linear * dist + light.Quadratic * dist * dist);
+       diffuse  *= attenuation;
+       specular *= attenuation;
+       lighting += diffuse + specular;
+   
+       FragColor = vec4(lighting, 1.0);
+   }
+   ```
+
+   
 
 
 
@@ -758,6 +1368,70 @@ $$
 
 ## 2. Deferred
 
+多渲染目标：
+
+```c
+// 1. 一个 FBO 绑定多个 buffer
+GLuint gBuffer;
+glGenFramebuffers(1, &gBuffer);
+glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+GLuint gPosition, gNormal, gColorSpec;
+
+// - 位置颜色缓冲
+glGenTextures(1, &gPosition);
+glBindTexture(GL_TEXTURE_2D, gPosition);
+glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_FLOAT, NULL);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPosition, 0
+
+// - 法线颜色缓冲
+glGenTextures(1, &gNormal);
+glBindTexture(GL_TEXTURE_2D, gNormal);
+glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_FLOAT, NULL);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gNormal, 0);
+
+// - 颜色 + 镜面颜色缓冲
+glGenTextures(1, &gAlbedoSpec);
+glBindTexture(GL_TEXTURE_2D, gAlbedoSpec);
+glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gAlbedoSpec, 0);
+
+// - 告诉OpenGL我们将要使用(帧缓冲的)哪种颜色附件来进行渲染
+GLuint attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+glDrawBuffers(3, attachments);
+                       
+// 2. 片源着色器绘制 buffer
+#version 330 core
+layout (location = 0) out vec3 gPosition;
+layout (location = 1) out vec3 gNormal;
+layout (location = 2) out vec4 gAlbedoSpec;
+
+in vec2 TexCoords;
+in vec3 FragPos;
+in vec3 Normal;
+
+uniform sampler2D texture_diffuse1;
+uniform sampler2D texture_specular1;
+
+void main() {    
+    // 存储第一个G缓冲纹理中的片段位置向量
+    gPosition = FragPos;
+    // 同样存储对每个逐片段法线到G缓冲中
+    gNormal = normalize(Normal);
+    // 和漫反射对每个逐片段颜色
+    gAlbedoSpec.rgb = texture(texture_diffuse1, TexCoords).rgb;
+    // 存储镜面强度到gAlbedoSpec的alpha分量
+    gAlbedoSpec.a = texture(texture_specular1, TexCoords).r;
+}  
+```
+
+
+
 延迟渲染
 
 - 方法：将光照处理这一步放在三维物体已经生成二维图片之后进行处理（屏幕坐标系）
@@ -776,7 +1450,7 @@ $$
   For each object: 
   		Render to multiple targets 
   For each light: 
-		Apply light as a 2D postprocess
+		  Apply light as a 2D postprocess
   ```
   
 - 缺点：
@@ -885,6 +1559,7 @@ $$
 - [Unity Shader: 基于物理的渲染](./EXT2_UnityShadersChapter18.pdf)
 - [OGL-Cascaded Shadow Mapping](http://ogldev.atspace.co.uk/www/tutorial49/tutorial49.html)
 - [MSDN-Cascaded Shadow Maps](https://docs.microsoft.com/zh-cn/windows/win32/dxtecharts/cascaded-shadow-maps?redirectedfrom=MSDN)
+- [Cascaded Shadow Maps(CSM)实时阴影的原理与实现](https://zhuanlan.zhihu.com/p/53689987)
 - [彻底看懂 PBR/BRDF 方程](https://zhuanlan.zhihu.com/p/158025828)
 - [PBR 材质系统原理简介](https://blog.csdn.net/weixin_42660918/article/details/80989738)
 - [BRDF 材质贴图](https://blog.csdn.net/mconreally/article/details/50629098)

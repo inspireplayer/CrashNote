@@ -246,9 +246,9 @@ MipMap Level 计算
 
 ### 2.1 使用流程
 
-**I. CPU**
+**I. 顶点信息补充**
 
-   1. 由 模型变换 得到 法线的模型变换矩阵（逆矩阵耗时大，尽量放在 CPU 上算一次）
+   1. 由 模型变换 得到 法线的模型变换矩阵（逆矩阵耗时大，尽量放在 CPU 上算一次或者放在顶点着色器）
    2. 根据顶点位置和纹理坐标信息，计算**模型空间下的** 切线 和 副切线
    3. 每三个顶点构成一个平面，他们共享一组 切线 和 副切线
 
@@ -257,7 +257,7 @@ MipMap Level 计算
 **II. 顶点着色器**
 
 1. 将顶点数据中的 切线、副切线、法线坐标系位置经过 法线的模型变换矩阵 转换为
-   **世界空间下的** 切线空间坐标，归一化后构建 切线空间矩阵
+   **世界空间下的** 切线空间坐标，Gram-Schmidt 正交化后构建 切线空间矩阵
 2. 计算世界空间下的光源在 切线空间 的坐标
 
 
@@ -272,10 +272,8 @@ MipMap Level 计算
 
 ### 2.2 切线空间
 
-切线空间的坐标系
-虽然实际在模型上进行纹理贴图时，实际的纹理坐标在贴图后并不一定互相垂直（非刚体变换），但这不会改变法线的方向
+切线空间的坐标系，原点：模型的顶点
 
-- 原点：模型的顶点
 - Z 轴：N（Normal）法线方向（和 Z 轴的正方向始终保持一直）
 - X 轴：T（Tagent）切线方向，和纹理坐标的 X 轴（U）一致
 - Y 轴：B（Bitangent）副切线方向 ，和纹理坐标的 Y 轴（V）一致
@@ -284,7 +282,7 @@ MipMap Level 计算
 
 
 
-计算映射 **模型空间** 到纹理法线 **切线空间** 的矩阵
+计算额外的顶点信息：纹理法线 **切线空间** 到 **模型空间** 的矩阵
 
 - 已知切线空间法线纹理的切线 T 和 副切线 B 分别对应与法线纹理对应普通纹理的 U 和 V 坐标轴
   （此时 T、B 在模型空间下）且点 $P_1$、$P_2$、$P_3$ 与纹理坐标的对应关系如下图，
@@ -330,6 +328,20 @@ MipMap Level 计算
   $$
   
 
+
+
+**Gram-Schmidt 正交化**
+
+当在更大的网格上计算切线向量的时候，它们往往有很大数量的共享顶点，当法向贴图应用到这些表面时将切线向量平均化（一个三角面平均三个顶点的切向量）通常能获得更好更平滑的结果。但是这样做有个问题，就是TBN向量可能会不能互相垂直，这意味着 TBN 矩阵不再是正交矩阵了
+
+这时需要在**顶点着色器**做正交化操作，让 TBN 回归到正交矩阵
+$$
+\begin{align}
+N &= normalize(N) \\
+T &= normalize(U - dot(U, N) * N) \\
+B &= normalize(cross(N, T))
+\end{align}
+$$
 
 
 ### 2.3 不同坐标空间的比较
@@ -383,13 +395,20 @@ MipMap Level 计算
 
 ## 1. 立方体纹理 Cube Map
 
-立方体贴图
+立方体贴图 GL_TEXTURE_CUBE_MAP 
+
+```c
+uniform samplerCube skybox;
+glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, ...)
+```
 
 - 包含了 6 个 2D 纹理的纹理，每个 2D 纹理都组成了立方体的一个面，它通过一个方向向量来进行采样
-  （方向向量的大小并不重要，只要提供了方向）
+  **方向向量的大小并不重要，只要提供了方向**
 
-- 纹理坐标：处于世界坐标系下，是一个由立方体中心出发指向立方体面的三维向量
-
+- 纹理坐标：一般为世界坐标系下的顶点坐标（范围 -1，1）
+处于世界坐标系下，是一个由立方体中心出发指向立方体面的三维向量
+  贴图的顺序一般为：<u>右、左、上、下、前、后</u>
+  
   ![](./images/texture_cube_map.png)
 
 
@@ -402,6 +421,7 @@ MipMap Level 计算
 - 使用提前深度测试将天空盒最后渲染以节省带宽
 - 纹理环绕方式：超出采样部分取边界
 - 通过将输出位置的 z 分量等于它的 w 分量，让 z 分量永远等于 1.0，使 z 在透视除法时，深度始终是最大的 1
+  `gl_Position = pos.xyww;`
 
 
 
@@ -537,11 +557,11 @@ $$
 
 
 
-
-
 ### 3.2 Worley 噪声纹理
 
 常用于模拟多孔噪声，如：石头、水、纸张
+
+
 
 
 
@@ -564,8 +584,9 @@ $$
 7. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
 8. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
 9. [Learning DirectX 12 – Lesson 4 – Textures](https://www.3dgep.com/learning-directx-12-4/)
-10. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
-11. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
+10. [Unity GPU优化(Occlusion Culling 遮挡剔除，LOD 多细节层次，GI 全局光照)](https://gameinstitute.qq.com/community/detail/120912)
+11. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
+12. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
 
 
 

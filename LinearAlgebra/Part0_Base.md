@@ -338,14 +338,22 @@ $$
 ## 1. 概念
 
 - 数学计算，遵循乘法交换律
-
+  如果 a，b 都是列向量，则 $a \cdot b = a^T * b$
   $$
   \begin{bmatrix} 
   \color{green}{1} \\  \color{red}{2} \\ 
   \end{bmatrix} \cdot
   \begin{bmatrix} 
   \color{green}{3} \\  \color{red}{4} \\ 
-  \end{bmatrix} = \color{green}{1} \cdot \color{green}{3} + \color{red}{2} \cdot \color{red}{4}
+  \end{bmatrix}
+  =
+  \begin{bmatrix} 
+  \color{green}{1} &  \color{red}{2} \\ 
+  \end{bmatrix} *
+  \begin{bmatrix} 
+  \color{green}{3} \\  \color{red}{4} \\ 
+  \end{bmatrix}
+  = \color{green}{1} \cdot \color{green}{3} + \color{red}{2} \cdot \color{red}{4}
   $$
 
 - **应用：求向量的夹角**

@@ -45,6 +45,7 @@ Color &= f_i * Color_i + f_j * Color_j + f_k * Color_k
 $$
 
 
+
 ## 4. 求面积
 
 已知三点坐标，求证三角形面积 $S_{\Delta ABC} = {1 \over 2}[(x_2-x_1)(y_3-y_1) - (y_2-y_1)(x_3-x_1)]$

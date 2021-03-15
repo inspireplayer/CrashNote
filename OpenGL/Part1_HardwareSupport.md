@@ -87,7 +87,7 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
 
 - PC 上常见的渲染模式，功耗大，速度快
 
-- 每个渲染命令都会立即开始
+- 每个渲染命令都会立即开始（<u>适合显存和处理器在一起的 PC 端</u>）
   GPU 使用额外的带宽快速存取几何数据
 
 - 遮蔽处理的部分**会**被渲染处理器
@@ -96,6 +96,7 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
   ![](images/imr.jpg)
   
   ```py
+  # 每个顶点几何图形画完后直接做像素颜色，此时像素颜色不确定，需要多次读写 framebuffer（深度值的不同）
   for draw in renderPass:
       for primitive in draw:
           for vertex in primitive:
@@ -114,7 +115,7 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
 
 - **移动端 GPU 常用的渲染模式，功耗低，速度慢**
 
-- 将渲染的一帧缓存分成一个个的区块（tile）
+- 将渲染的一帧缓存分成一个个的区块（<u>适合显存和处理器分开的移动端，显存在主存上面</u>）
   当提交渲染命令的时候，GPU 不会立刻进行渲染，而是一帧内所有的渲染命令积攒起来，最后统一渲染。
   每次 GPU 通过中间缓冲器 [SRAM](https://baike.baidu.com/item/SRAM/7705927?fr=aladdin) 访问 [DRAM](https://baike.baidu.com/item/DRAM) 显存上的一小块区块执行渲染命令以降低带宽
   
@@ -124,6 +125,7 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
   ![](images/tbr.jpg)
   
   ```py
+  # 多个顶点几何图形画完后在做像素颜色，此时像素颜色确定，只需要写一次 framebuffer（深度值已经确定）
   # Pass one
   for draw in renderPass:
       for primitive in draw:
