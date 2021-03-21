@@ -24,7 +24,7 @@
 ![](./images/irradiance.png)
 
 - $I_e$ 辐强度（radiant intensity）
-  **元立体角**内的辐通量 $I_e = {d\Phi \over d\Omega}$，单位是 $W/sr$
+  **元立体角**内的辐通量大小 $I_e = {d\Phi \over d\Omega}$，单位是 $W/sr$
   多用于测量点光源的强度
   
   > Angle 角，圆的弧长比半径
@@ -99,6 +99,38 @@
 - **物体反射的颜色（我们感知到的颜色）：光源的颜色 * 物体的颜色**
 - 多光源的情况下，一般都是将各个光源的颜色累加起来，最后得出最终的颜色
 - 同一个光源的光衰减系数是一样的，因此 **最终颜色 = 光衰减系数 * 光照模型计算的颜色**
+
+
+
+**HDR (High Dynamic Range, 高动态范围)**
+
+我们允许用更大范围的颜色值渲染从而获取大范围的黑暗与明亮的场景细节，最后将所有 HDR 值转换成在 [0.0, 1.0] 范围的 **LDR (Low Dynamic Range, 低动态范围)**
+
+**色调映射(Tone Mapping)**：转换 HDR 值到 LDR 值的过程
+
+```c
+#version 330 core
+out vec4 color;
+in vec2 TexCoords;
+
+uniform sampler2D hdrBuffer; // float frame buffer
+uniform float exposure;
+
+void main() {             
+    const float gamma = 2.2;
+    vec3 hdrColor = texture(hdrBuffer, TexCoords).rgb;
+
+  	// Tone Mapping
+    // Plan 1: reinhard
+    // vec3 result = hdrColor / (hdrColor + vec3(1.0));
+  
+    // Plan 2: exposure
+    vec3 result = vec3(1.0) - exp(-hdrColor * exposure);
+    // also gamma correct while we're at it       
+    result = pow(result, vec3(1.0 / gamma));
+    color = vec4(result, 1.0f);
+}
+```
 
 
 
@@ -246,11 +278,11 @@ PBR 满足以下条件
 - <u>反照率 Albedo 贴图</u>
   为每一个金属的纹素（Texel 纹理像素）指定表面颜色（固有色）或者基础反射率，只包含表面的颜色
 - <u>金属度 Metallic 贴图</u>
-  导体有更强的反射，导体的反射光颜色会与 Albedo（固有色）不同
+  导体有更强的反射，导体的反射光颜色会与 Albedo（固有色，金属没有漫反射）不同
   正式因为导体和非导体如此的不同，通常用金属度来控制一个材质是否为金属
   金属度可以用灰度值，也可以用二值图来表示物体表面具有金属特性的位置
 - <u>法线 Normal 贴图</u>
-  比微表平面颗粒要大的物体表面细节描述
+  计算反射光线强度时使用
 - <u>粗糙度 Roughness / 光滑度 Smoothness 贴图</u>
   微表平面模型的简化，以纹素为单位指定某个表面有多粗糙，粗糙度 = 1.0 – 光滑度
 - <u>环境光遮蔽 Ambient Occlusion 贴图</u>
@@ -271,7 +303,7 @@ PBR 满足以下条件
   $f_r$ BRDF，基于表面材质属性来对入射**辐亮度**进行缩放或者加权
 
 $$
-L_0(p,\omega_o) = \int_{\Omega} f_r(p,\omega_i,\omega_o)L_i(p,w_i)n\cdot\omega_id\omega_i
+L_o(p,\omega_o) = \int_{\Omega} f_r(p,\omega_i,\omega_o)L_i(p,w_i)n\cdot\omega_id\omega_i
 $$
 
 BRDF（Bidirectional Reflectance Distribution Function）双向反射分布函数：可以近似的求出每束光线对一个给定了材质属性的平面上最终反射出来的光线所作出的**贡献程度**，必须遵守能量守恒
@@ -340,7 +372,7 @@ $$
 
 字母 D, F, G 分别代表着一种类型的函数，各个函数分别用来近似的计算出表面反射特性的一个特定部分
 
-1. Normal **D**istribution Function 正态分布函数
+1. **反射光的粗糙度**：Normal Distribution Function 正态分布函数
    用来估算微平面的主要函数，估算在受到表面粗糙度的影响下，取向方向与中间向量一致的微平面的数量
    以下设给定向量 $h$，通过 NDF 函数 Trowbridge-Reitz GGX 计算与 $h$ 方向一致的概率
    $h$：平面法向量 $n$ 和光线方向向量之间的中间向量
@@ -349,7 +381,7 @@ $$
    NDF_{GGXTR}(n,h,\alpha) = {\alpha^2 \over \pi((n\cdot h)^2(\alpha^2-1)+1)^2}
    $$
 
-2. **F**resnel reflection 菲涅耳反射
+2. **反射和视角的关系决定反射强度**：Fresnel reflection 菲涅耳反射
 
    用来描述不同的表面角下表面所**反射的光线所占折射和反射的比率**
    菲涅耳反射：观察方向和物体表面法线的夹角越大，反射效果越明显
@@ -369,7 +401,7 @@ $$
      
      
 
-3. **G**eometry Function 几何函数
+3. **反射光的自遮挡**：Geometry Function 几何函数
 
    用来描述微平面自成阴影的属性
    当一个平面相对比较粗糙的时候，平面表面上的微平面有可能挡住其他的微平面从而**减少表面所反射的光线**
@@ -405,7 +437,7 @@ $$
 
 完整的基于 Cook-Torrance BRDF 模型的反射率方程即 PBR 方程为
 $$
-L_0(p,\omega_o) = \int_{\Omega} (k_d{color \over \pi} + k_s{DFG \over 4(\omega_o \cdot n)(\omega_i \cdot n)})L_i(p,w_i)n\cdot\omega_id\omega_i
+L_o(p,\omega_o) = \int_{\Omega} (k_d{color \over \pi} + k_s{DFG \over 4(\omega_o \cdot n)(\omega_i \cdot n)})L_i(p,w_i)n\cdot\omega_id\omega_i
 $$
 
 
@@ -413,7 +445,7 @@ $$
 ## 6. PBR 计算简化代码实现
 
 ```c
-// 方法一：实时计算实现 FS
+// 方法一：根据统一数据计算 FS
 #version 330 core
 out vec4 FragColor;
 in vec2 TexCoords;
@@ -434,6 +466,7 @@ uniform vec3 camPos;
 
 const float PI = 3.14159265359;
 
+// 3.1 正态分布函数：计算微表面粗糙度（高光区域）
 float DistributionGGX(vec3 N, vec3 H, float roughness) {
     float a = roughness*roughness;
     float a2 = a*a;
@@ -444,10 +477,11 @@ float DistributionGGX(vec3 N, vec3 H, float roughness) {
     float denom = (NdotH2 * (a2 - 1.0) + 1.0);
     denom = PI * denom * denom;
 
-	  // prevent divide by zero for roughness=0.0 and NdotH=1.0
+	  // 避免在 NdotV=0.0 or NdotL=0.0 情况下出现除零错误
     return nom / max(denom, 0.0000001); 
 }
 
+// 3.2.1 几何函数：微表面自成阴影的程度
 float GeometrySchlickGGX(float NdotV, float roughness) {
     float r = (roughness + 1.0);
     float k = (r*r) / 8.0;
@@ -457,7 +491,7 @@ float GeometrySchlickGGX(float NdotV, float roughness) {
 
     return nom / denom;
 }
-
+// 3.2.2 同时考虑观察方向和光源方向下的 几何函数值
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
     float NdotV = max(dot(N, V), 0.0);
     float NdotL = max(dot(N, L), 0.0);
@@ -467,6 +501,7 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
     return ggx1 * ggx2;
 }
 
+// 3.3 菲涅尔方程：不同观察角下反射光线的强度
 vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
 }
@@ -475,89 +510,69 @@ void main() {
     vec3 N = normalize(Normal);
     vec3 V = normalize(camPos - WorldPos);
 
-    // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
-    // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
+    // 1. 计算基础反照率：根据金属度来计算高光色是折射的固有色还是反射的高光色
+    //    在菲涅尔反射中作为某类材质的固定参数使用
     vec3 F0 = vec3(0.04); 
     F0 = mix(F0, albedo, metallic);
 
-    // reflectance equation
+    // 2. 前向渲染：使用双向反射分布函数 BRDF，累计处理每个光源的光照强度
     vec3 Lo = vec3(0.0);
     for(int i = 0; i < 4; ++i) {
-        // calculate per-light radiance
+      
+        // 2.1 根据光体积，计算光源的光照强度
         vec3 L = normalize(lightPositions[i] - WorldPos);
         vec3 H = normalize(V + L);
         float distance = length(lightPositions[i] - WorldPos);
         float attenuation = 1.0 / (distance * distance);
         vec3 radiance = lightColors[i] * attenuation;
 
-        // Cook-Torrance BRDF
+        // 2.2 计算双向反射分布函数的 Cook-Torrance
         float NDF = DistributionGGX(N, H, roughness);   
         float G   = GeometrySmith(N, V, L, roughness);      
         vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
            
         vec3 nominator    = NDF * G * F; 
         float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
-       // prevent divide by zero for NdotV=0.0 or NdotL=0.0
+        // 避免在 NdotV=0.0 or NdotL=0.0 情况下出现除零错误
         vec3 specular = nominator / max(denominator, 0.001); 
         
-        // kS is equal to Fresnel
+        // 2.3 计算光的辐射率强度，不用 Blinn-Phone 因为它不遵循能量守恒，更像是 BRDF 的替代简化版
+        float NdotL = max(dot(N, L), 0.0);  
+      
+        // 2.4 计算反射和折射系数
+        // kS 镜面反射强度：源于菲涅尔方程
         vec3 kS = F;
-        // for energy conservation, the diffuse and specular light can't
-        // be above 1.0 (unless the surface emits light); to preserve this
-        // relationship the diffuse component (kD) should equal 1.0 - kS.
+        // kD 漫反射强度（折射强度）：1.0 - 高光反射
+        // 这个能量守恒总量是 1.0，要大于 1.0 除非是自发光物体
         vec3 kD = vec3(1.0) - kS;
-        // multiply kD by the inverse metalness such that only non-metals 
-        // have diffuse lighting, or a linear blend if partly metal (pure metals
-        // have no diffuse light).
-        kD *= 1.0 - metallic;	  
+        // kD 要考虑金属材质：因为金属不会折射光线，因此不会有漫反射
+        kD *= 1.0 - metallic;	        
 
-        // scale light by NdotL
-        float NdotL = max(dot(N, L), 0.0);        
-
-        // add to outgoing radiance Lo
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+        // 4. 计算出射光的反射强度总量
+        // Cook-Torrance 方程中的 F 就是 ks，因此方程的结果 specular 已经计入了 ks，不需要再次乘以 ks
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     }   
     
-    // ambient lighting (note that the next IBL tutorial will replace 
-    // this ambient lighting with environment lighting).
+    // 环境光照强度（将会被 IBL 基于图像的环境光代替）
     vec3 ambient = vec3(0.03) * albedo * ao;
 
     vec3 color = ambient + Lo;
-
-    // HDR tonemapping
-    color = color / (color + vec3(1.0));
-    // gamma correct
-    color = pow(color, vec3(1.0/2.2)); 
-
+    color = color / (color + vec3(1.0)); // HDR 色调映射
+    color = pow(color, vec3(1.0/2.2)); 	 // gamma 矫正
+  
     FragColor = vec4(color, 1.0);
 }
 
 // 方法二：根据贴图计算 FS
-#version 330 core
-out vec4 FragColor;
-in vec2 TexCoords;
-in vec3 WorldPos;
-in vec3 Normal;
-
-// material parameters
-uniform sampler2D albedoMap;
 uniform sampler2D normalMap;
+uniform sampler2D albedoMap;
 uniform sampler2D metallicMap;
 uniform sampler2D roughnessMap;
 uniform sampler2D aoMap;
 
-// lights
-uniform vec3 lightPositions[4];
-uniform vec3 lightColors[4];
+// ...
 
-uniform vec3 camPos;
-
-const float PI = 3.14159265359;
-
-// Easy trick to get tangent-normals to world-space to keep PBR code simplified.
-// Don't worry if you don't get what's going on; you generally want to do normal 
-// mapping the usual way for performance anways; I do plan make a note of this 
-// technique somewhere later in the normal mapping tutorial.
+// 将法线向量从 切线空间 转换为 世界空间
 vec3 getNormalFromMap() {
     vec3 tangentNormal = texture(normalMap, TexCoords).xyz * 2.0 - 1.0;
 
@@ -574,43 +589,11 @@ vec3 getNormalFromMap() {
     return normalize(TBN * tangentNormal);
 }
 
-float DistributionGGX(vec3 N, vec3 H, float roughness) {
-    float a = roughness*roughness;
-    float a2 = a*a;
-    float NdotH = max(dot(N, H), 0.0);
-    float NdotH2 = NdotH*NdotH;
-
-    float nom   = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
-
-    return nom / denom;
-}
-
-float GeometrySchlickGGX(float NdotV, float roughness) {
-    float r = (roughness + 1.0);
-    float k = (r*r) / 8.0;
-
-    float nom   = NdotV;
-    float denom = NdotV * (1.0 - k) + k;
-
-    return nom / denom;
-}
-
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
-    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
-
-    return ggx1 * ggx2;
-}
-
-vec3 fresnelSchlick(float cosTheta, vec3 F0) {
-    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
-}
+// ...
 
 void main() {		
+    // 从纹理中获取多变的材质贴图
+    // albedo 从贴图的非线性 sRGB 空间转化为线性的 RGB 空间
     vec3 albedo     = pow(texture(albedoMap, TexCoords).rgb, vec3(2.2));
     float metallic  = texture(metallicMap, TexCoords).r;
     float roughness = texture(roughnessMap, TexCoords).r;
@@ -618,61 +601,17 @@ void main() {
 
     vec3 N = getNormalFromMap();
     vec3 V = normalize(camPos - WorldPos);
-
-    // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0 
-    // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)    
+    
     vec3 F0 = vec3(0.04); 
     F0 = mix(F0, albedo, metallic);
 
-    // reflectance equation
+    // 反射方程
     vec3 Lo = vec3(0.0);
     for(int i = 0; i < 4; ++i) {
-        // calculate per-light radiance
-        vec3 L = normalize(lightPositions[i] - WorldPos);
-        vec3 H = normalize(V + L);
-        float distance = length(lightPositions[i] - WorldPos);
-        float attenuation = 1.0 / (distance * distance);
-        vec3 radiance = lightColors[i] * attenuation;
-
-        // Cook-Torrance BRDF
-        float NDF = DistributionGGX(N, H, roughness);   
-        float G   = GeometrySmith(N, V, L, roughness);      
-        vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
-           
-        vec3 nominator    = NDF * G * F; 
-        float denominator = 4 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.001; // 0.001 to prevent divide by zero.
-        vec3 specular = nominator / denominator;
-        
-        // kS is equal to Fresnel
-        vec3 kS = F;
-        // for energy conservation, the diffuse and specular light can't
-        // be above 1.0 (unless the surface emits light); to preserve this
-        // relationship the diffuse component (kD) should equal 1.0 - kS.
-        vec3 kD = vec3(1.0) - kS;
-        // multiply kD by the inverse metalness such that only non-metals 
-        // have diffuse lighting, or a linear blend if partly metal (pure metals
-        // have no diffuse light).
-        kD *= 1.0 - metallic;	  
-
-        // scale light by NdotL
-        float NdotL = max(dot(N, L), 0.0);        
-
-        // add to outgoing radiance Lo
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+        // ...
     }   
     
-    // ambient lighting (note that the next IBL tutorial will replace 
-    // this ambient lighting with environment lighting).
-    vec3 ambient = vec3(0.03) * albedo * ao;
-    
-    vec3 color = ambient + Lo;
-
-    // HDR tonemapping
-    color = color / (color + vec3(1.0));
-    // gamma correct
-    color = pow(color, vec3(1.0/2.2)); 
-
-    FragColor = vec4(color, 1.0);
+    // ...
 }
 ```
 
@@ -680,11 +619,406 @@ void main() {
 
 ## 7. 基于图像的照明 IBL
 
+IBL 通常使用（取自现实世界或从3D场景生成的）环境立方体贴图 (Cubemap) ，我们可以将立方体贴图的**每个像素视为光源**，在渲染方程中直接使用它。这种方式可以有效地捕捉环境的全局光照和氛围，使物体**更好地融入**其环境。
+
+根据反射方程：
+$$
+\begin{align}
+L_o(p,\omega_o) &= \int_{\Omega} (k_d{color \over \pi} + k_s{DFG \over 4(\omega_o \cdot n)(\omega_i \cdot n)})L_i(p,w_i)n\cdot\omega_id\omega_i \\
+&= \int_{\Omega} k_d{color \over \pi}L_i(p,w_i)n\cdot\omega_id\omega_i + \int_{\Omega} k_s{DFG \over 4(\omega_o \cdot n)(\omega_i \cdot n)}L_i(p,w_i)n\cdot\omega_id\omega_i \\
+&= k_d{color \over \pi}\int_{\Omega} L_i(p,w_i)n\cdot\omega_id\omega_i + \int_{\Omega} k_s{DFG \over 4(\omega_o \cdot n)(\omega_i \cdot n)}L_i(p,w_i)n\cdot\omega_id\omega_i \\
+&= L_{o 漫反射} + L_{o 镜面反射}
+\end{align}
+$$
+
+可知
+
+- 漫反射与 物体的位置 和 入射光线方向 有关
+- 镜面反射与 物体的位置、入射光线方向、<u>出射光线方向</u> 有关
+
+
+
 ### 7.1 IBL 漫反射
+
+**辐照度图**
+
+- 根据环境贴图，计算或预计算在一个<u>固定位置</u>下新的立方体贴图，它在每个采样方向（也就是纹素）中存储漫反射积分的结果，这些结果是通过卷积计算出来的
+- 在图的每个像素上通过对光的辐射范围半球 $\Omega$ 上的大量方向进行离散采样并对其辐射度取平均值，来**计算每个输出采样方向的积分**
+
+
+
+**反射探针**
+
+- 辐照度贴图是从<u>固定位置</u>获得的光照贴图，在不同的室内场景位置中我们会使用不同的辐照度贴图来达到环境光动态变化的效果
+  这个固定位置我们称为反射探针
+- 根据当前视点的辐照度为：与其距离最近的几个反射探针处辐照度的插值
+
+
+
+**IBL 漫反射贴图 制作流程**
+
+1. 读取 hdr 图(从球体投影到平面上的图)，转换为距柱状投影图(Equirectangular Map)
+   实际读取图片到 float texture 就可以
+
+2. 等距柱状投影图 转换为 立方体贴图
+   采用不同的观察空间，从柱状投影图逐个绘制纹理到对应的立方体贴图上（可以通过缩小立方图来提高效率）
+
+   ```c
+   #version 330 core
+   out vec4 FragColor;
+   in vec3 localPos; // 经过 VS 插值后的顶点坐标（模型空间）
+   
+   uniform sampler2D equirectangularMap;
+   
+   const vec2 invAtan = vec2(0.1591, 0.3183);
+   // 球体 UV 坐标转 笛卡尔 uv 坐标
+   vec2 SampleSphericalMap(vec3 v) {
+       vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
+       uv *= invAtan;
+       uv += 0.5;
+       return uv;
+   }
+   
+   void main() {       
+       vec2 uv = SampleSphericalMap(normalize(localPos)); // make sure to normalize localPos
+       vec3 color = texture(equirectangularMap, uv).rgb;
+   
+       FragColor = vec4(color, 1.0);
+   }
+   ```
+   
+3. 生成辐照度贴图：计算立方体贴图的卷积
+   ![](./images/sphericalcoordinates.png)
+   
+   通过对有限数量的**所有方向**采样以近似求解（卷积）
+   $$
+   \begin{align}
+   x &= rsin\theta cos\phi \\
+   y &= rcos\theta \\
+   z &= rsin\theta sin\phi \\\\
+   r &= \sqrt {x^2 + y^2 + z^2} \\
+   \theta &= cos^{-1}{y \over r} \\
+   \phi &= tan^{-1}{z \over x} \\\\
+   L_o(p,\omega_o) &= k_d{color \over \pi}\int_{\Omega} L_i(p,w_i)n\cdot\omega_id\omega_i \\
+   L_o(p,\phi_o, \theta_o) &= k_d{color \over \pi} \int_{\phi = 0}^{2 \pi} \int_{\theta = 0}^{\pi \over 2} L_i(p,\phi_i, \theta_i) cos\theta sin\theta d\phi d\theta
+   \end{align}
+   $$
+   
+   根据以上公式进行离散均匀采样积分
+   
+   ```c
+   vec3 irradiance = vec3(0.0);  
+   
+   // 根据法线制作 TBN 切线坐标矩阵
+   vec3 up    = vec3(0.0, 1.0, 0.0);
+   vec3 right = cross(up, normal);
+   up         = cross(normal, right);
+   
+   float sampleDelta = 0.025;
+   float nrSamples = 0.0;
+   // 半球采样：phi 绕 y 轴 360，theta 绕 z 轴 180
+   for(float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta) {
+       for(float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta) {
+           // 球形坐标 转 笛卡尔坐标 (切线空间)
+           vec3 tangentSample = vec3(sin(theta) * cos(phi),  
+                                     sin(theta) * sin(phi), 
+                                     cos(theta));
+           // 切线空间转换为世界空间
+           vec3 sampleVec = tangentSample.x * right + 
+                            tangentSample.y * up + 
+                            tangentSample.z * N; 
+   
+           irradiance += texture(environmentMap, sampleVec).rgb * cos(theta) * sin(theta);
+           nrSamples++;
+       }
+   }
+   irradiance = PI * irradiance * (1.0 / float(nrSamples));
+   ```
+   
+4. IBL 辐照度贴图 和 PBR 结合
+   由于 IBL 的漫反射环境来自环境的所有方向，没有一个确定的方向来计算菲涅耳效应
+   为了模拟菲涅耳效应，我们用法线和视线之间的夹角计算菲涅耳系数
+
+   ```c
+   vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
+       return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+   }  
+   
+   vec3 kS = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness); 
+   ```
 
 
 
 ### 7.2 IBL 镜面反射
+
+#### 7.2.1 前置知识：蒙特卡洛积分和重要性采样
+
+**概率密度函数 PDF  (probability density function)**：随着连续随机变量样本在整个样本集上发生的<u>概率</u>
+**累积分布函数 CDF (Cumulative Distribution Function)**：随着连续随机变量而变化的<u>概率积分值</u>，CDF 的导数是 PDF
+
+**大数定理**：抽样检测一部分数据得出的结果虽然不能完全代表整个样品，但结果随着采样数量的增加而逐渐接近
+
+**蒙特卡洛积分**主要是统计和概率理论的组合。蒙特卡洛可以帮助我们离散地解决人口统计问题，而不必考虑**所有**人
+蒙特卡洛积分在计算机图形学中非常普遍，因为它是一种以高效的离散方式对连续的积分求近似而且非常直观的方法：对任何面积/体积进行采样——例如半球 Ω ——在该面积/体积内生成数量 N 的随机采样，权衡每个样本对最终结果的贡献并求和
+
+**重要性采样**：只在某些区域生成采样向量，该区域围绕微表面半向量，受粗糙度限制
+
+1. 通过低差异序列根据索引整数获得均匀的随机数
+2. 根据粗糙度和微表面等属性进行重要性质采样
+
+
+
+#### 7.2.2 具体实现步骤
+
+在实时状态下，对每种可能的 **入射光线** 和 出射光线 的组合预计算该积分是不可行的。 **Epic Games 的分割求和近似法**将预计算分成两个单独的部分求解，再将两部分组合起来得到后文给出的预计算结果。
+$$
+\begin{align}
+f_r(p, w_i, w_o) &= k_s{DFG \over 4(\omega_o \cdot n)(\omega_i \cdot n)} \\
+L_o(p, \omega_o) &= \int_{\Omega} k_s{DFG \over 4(\omega_o \cdot n)(\omega_i \cdot n)}L_i(p,w_i)n\cdot\omega_id\omega_i \\
+&= \int_{\Omega} f_r(p, w_i, w_o)L_i(p,w_i)n\cdot\omega_id\omega_i \\
+&= \int_{\Omega} L_i(p,w_i)d\omega_i * \int_{\Omega}f_r(p, w_i, w_o)n\cdot \omega_i d\omega_i \\\\
+&= 预滤波环境贴图 * 镜面反射积分
+\end{align}
+$$
+
+1. 制作**预滤波环境贴图**
+
+   它类似于辐照度图，是预先计算的环境卷积贴图，但这次考虑了粗糙度。因为随着粗糙度的增加，参与环境贴图卷积的采样向量会更分散，导致反射更模糊，所以对于卷积的每个粗糙度级别，我们将按顺序把模糊后的结果存储在预滤波贴图的 mipmap 中，注意开启 `glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);  `  让立方体接缝过渡自然
+
+   可以通过 [cmftStudio](https://github.com/dariomanesku/cmftStudio) 或 [IBLBaker](https://github.com/derkreature/IBLBaker) 等工具生成预计算贴图
+
+   ![](./images/ibl_prefilter_map.png)
+
+   ```c
+   #version 330 core
+   out vec4 FragColor;
+   in vec3 WorldPos;
+   
+   uniform samplerCube environmentMap;
+   uniform float roughness;
+   
+   const float PI = 3.14159265359;
+   
+   float DistributionGGX(vec3 N, vec3 H, float roughness) {
+       float a = roughness*roughness;
+       float a2 = a*a;
+       float NdotH = max(dot(N, H), 0.0);
+       float NdotH2 = NdotH*NdotH;
+   
+       float nom   = a2;
+       float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+       denom = PI * denom * denom;
+   
+       return nom / denom;
+   }
+   
+   // http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+   // efficient VanDerCorpus calculation
+   // 整数变小数：把十进制数字的二进制表示 镜像翻转 到小数点右边
+   float RadicalInverse_VdC(uint bits) {
+        bits = (bits << 16u) | (bits >> 16u);
+        bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+        bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+        bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+        bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+        return float(bits) * 2.3283064365386963e-10; // / 0x100000000
+   }
+   
+   // 低差异序列：根据索引来生成均匀随机数，避免伪随机带来的不均匀采样
+   vec2 Hammersley(uint i, uint N) {
+   	return vec2(float(i)/float(N), RadicalInverse_VdC(i));
+   }
+   
+   // 重要性采样
+   vec3 ImportanceSampleGGX(vec2 Xi, vec3 N, float roughness) {
+   	float a = roughness*roughness;
+   	
+     // 根据随机数获得随机角度
+   	float phi = 2.0 * PI * Xi.x;
+   	float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a*a - 1.0) * Xi.y));
+   	float sinTheta = sqrt(1.0 - cosTheta*cosTheta);
+   	
+   	// 根据随机角度获得半角向量，从球坐标转换为笛卡尔坐标
+   	vec3 H;
+   	H.x = cos(phi) * sinTheta;
+   	H.y = sin(phi) * sinTheta;
+   	H.z = cosTheta;
+   	
+   	// 将半角向量从切线空间转换为世界空间
+   	vec3 up          = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+   	vec3 tangent   = normalize(cross(up, N));
+   	vec3 bitangent = cross(N, tangent);
+   	
+   	vec3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
+   	return normalize(sampleVec);
+   }
+   
+   void main(){		
+   	  // 在卷积环境贴图时事先不知道镜面反射方向, 因此假设镜面反射方向总是等于输出方向 w_o
+   		// 这意味着掠角镜面反射效果不是很好
+       vec3 N = normalize(WorldPos);
+       vec3 R = N;
+       vec3 V = R;
+   
+       const uint SAMPLE_COUNT = 1024u;
+       vec3 prefilteredColor = vec3(0.0);
+       float totalWeight = 0.0;
+       
+       for(uint i = 0u; i < SAMPLE_COUNT; ++i) {
+           // 根据重要性采样随机生成半角向量 H
+           vec2 Xi = Hammersley(i, SAMPLE_COUNT);
+           vec3 H = ImportanceSampleGGX(Xi, N, roughness);
+           vec3 L  = normalize(2.0 * dot(V, H) * H - V);
+   
+           float NdotL = max(dot(N, L), 0.0);
+           if(NdotL > 0.0) {
+               float D   = DistributionGGX(N, H, roughness);
+               float NdotH = max(dot(N, H), 0.0);
+               float HdotV = max(dot(H, V), 0.0);
+               float pdf = D * NdotH / (4.0 * HdotV) + 0.0001; 
+   
+               float resolution = 512.0; // resolution of source cubemap (per face)
+               float saTexel  = 4.0 * PI / (6.0 * resolution * resolution);
+               float saSample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);
+   
+               float mipLevel = roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel); 
+               
+               // 根据纹理的 LOD 大小来加载纹理
+               prefilteredColor += textureLod(environmentMap, L, mipLevel).rgb * NdotL;
+               totalWeight      += NdotL;
+           }
+       }
+   
+       prefilteredColor = prefilteredColor / totalWeight;
+       FragColor = vec4(prefilteredColor, 1.0);
+   }
+   ```
+
+2. 制作 **BRDF 积分贴图**
+   存储：入射角方向，建议存储为 512 x 512 大小的支持存储 mip 级别的 .dds 文件
+   横坐标：BRDF 的输入 $n\cdot \omega_i$（范围在 0.0 和 1.0 之间，$\omega_i$ 为光源到片源方向，$\omega_o$ 为视点到片源方向）
+   纵坐标：粗糙度
+   将环绕模式设置为  `GL_CLAMP_TO_EDGE` 以防止边缘采样的伪像，并且在 NDC (译注：Normalized Device Coordinates) 屏幕空间四边形上绘制积分贴图
+
+   ![](./images/ibl_brdf_lut.png)
+   
+   根据 $n \cdot \omega_o$、表面粗糙度、菲涅尔系数 $F_0$ 来计算 BRDF 方程的卷积
+   并且假设在纯白的环境光或者辐射度恒定为 1，为了减少因变量的个数，我们做以下化简
+   $$
+   \begin{align}
+   \int_{\Omega}f_r(p, w_i, w_o)n\cdot \omega_i d\omega_i &= 
+   \int_{\Omega}f_r(p, w_i, w_o){F(\omega_o, h) \over F(\omega_o, h)}n\cdot \omega_i d\omega_i\\
+   &=\int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}F(\omega_o, h)n\cdot \omega_i d\omega_i\\
+   &=\int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}(F_0 + (1-F_0)(1-\omega_o \cdot h)^5)n\cdot \omega_i d\omega_i\\
+   设 \space \alpha = (1 - \omega_o \cdot h)^5, \space 则：\\
+   &=\int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}n\cdot \omega_i (F_0 + (1-F_0)\alpha) d\omega_i\\
+   &=\int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}n\cdot \omega_i (F_0 + \alpha -F_0 *\alpha) d\omega_i\\
+   &=\int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}n\cdot \omega_i (F_0 * (1 -\alpha)+ \alpha) d\omega_i\\
+   &=\int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}n\cdot \omega_i (F_0 * (1 -\alpha)) d\omega_i + \int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}n\cdot \omega_i \alpha d\omega_i\\
+   &=F_0\int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}n\cdot \omega_i (1 -\alpha) d\omega_i + \int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}n\cdot \omega_i \alpha d\omega_i\\
+   &=F_0\int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}n\cdot \omega_i (1 -(1 - \omega_o \cdot h)^5) d\omega_i + \int_{\Omega}{f_r(p, w_i, w_o) \over F(\omega_o, h)}n\cdot \omega_i (1 - \omega_o \cdot h)^5 d\omega_i\\
+   &=F_0 A + B\\
+   \end{align}
+   $$
+   转换为代码为：
+   ```glsl
+   float GeometrySchlickGGX(float NdotV, float roughness) {
+       // 不使用 IBL 
+     	// float a = (roughness + 1.0);
+       // float k = (a * a) / 8.0;
+     
+       // 使用 IBL 后和不用 IBL 这里公式略有不同
+       float a = roughness;
+       float k = (a * a) / 2.0; 
+   
+       float nom   = NdotV;
+       float denom = NdotV * (1.0 - k) + k;
+   
+       return nom / denom;
+   }
+   
+   float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+       float NdotV = max(dot(N, V), 0.0);
+       float NdotL = max(dot(N, L), 0.0);
+       float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+       float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+   
+       return ggx1 * ggx2;
+   }
+   
+   vec2 IntegrateBRDF(float NdotV, float roughness) {
+       vec3 V;
+       V.x = sqrt(1.0 - NdotV*NdotV);
+       V.y = 0.0;
+       V.z = NdotV;
+   
+       float A = 0.0;
+       float B = 0.0;
+   
+       vec3 N = vec3(0.0, 0.0, 1.0);
+   
+       const uint SAMPLE_COUNT = 1024u;
+       for(uint i = 0u; i < SAMPLE_COUNT; ++i) {
+           // 根据重要性采样随机生成入射光线和反射光线的 半角向量
+           vec2 Xi = Hammersley(i, SAMPLE_COUNT);
+           vec3 H  = ImportanceSampleGGX(Xi, N, roughness);
+           vec3 L  = normalize(2.0 * dot(V, H) * H - V);
+   
+           float NdotL = max(L.z, 0.0);
+           float NdotH = max(H.z, 0.0);
+           float VdotH = max(dot(V, H), 0.0);
+   
+           if(NdotL > 0.0) {
+               float G = GeometrySmith(N, V, L, roughness);
+               float G_Vis = (G * VdotH) / (NdotH * NdotV);
+               float Fc = pow(1.0 - VdotH, 5.0);
+   
+               A += (1.0 - Fc) * G_Vis;
+               B += Fc * G_Vis;
+           }
+       }
+       A /= float(SAMPLE_COUNT);
+       B /= float(SAMPLE_COUNT);
+       return vec2(A, B);
+   }
+   
+   void main()  {
+       vec2 integratedBRDF = IntegrateBRDF(TexCoords.x, TexCoords.y);
+       FragColor = integratedBRDF;
+   }
+   ```
+   
+3. 结合预滤波环境和 BRDF 积分贴图，完成 IBL 反射
+
+   ```glsl
+   uniform samplerCube prefilterMap; // 预滤波环境贴图
+   uniform sampler2D   brdfLUT;  		// BRDF 积分贴图
+   
+   void main() {
+       [...]
+       vec3 R = reflect(-V, N);   
+       const float MAX_REFLECTION_LOD = 4.0;
+       vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
+     
+     	vec3 F = FresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+   
+       vec3 kS = F;
+       vec3 kD = 1.0 - kS;
+       kD *= 1.0 - metallic;     
+   
+       vec3 irradiance = texture(irradianceMap, N).rgb;
+       vec3 diffuse    = irradiance * albedo;
+   
+       const float MAX_REFLECTION_LOD = 4.0;
+       vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;   
+       vec2 envBRDF  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+   		// specular 由于已经乘过了菲涅尔系数，所以这里不用乘以 kS
+       vec3 specular = prefilteredColor * (F * envBRDF.x + envBRDF.y);
+   
+       vec3 ambient = (kD * diffuse + specular) * ao; 
+       [...]
+   }
+   ```
 
 
 
@@ -812,59 +1146,7 @@ $$
 
 
 
-
-# 四、全局光照
-
-全局光照主要对以下生活中的现象进行模拟：
-
-1. **间接光照**
-   也称反射照明，通过其他物体反射的光线照亮物体的光照效果
-   ![](./images/light_indirect.png)
-2. **环境光遮蔽**
-   常用来模拟大面积的光源对整个场景的光照
-   ![](./images/light_AO.png)
-3. **反射**
-   指镜子会反射场景中一摸一样像的效果
-   ![](./images/light_bounce.png)
-4. **焦散**
-   光经过透明物体的折射后聚焦在一定范围上的效果
-   ![](./images/light_caustics.png)
-
-
-
-**离线渲染方案**
-
-1. 路径追踪 
-2. 光子映射 Photon Mapping 
-3. 辐射度 只能模拟漫反射现象
-
-
-
-**实时渲染方案**
-
-- 屏幕空间
-  1. 屏幕环境光遮蔽
-  2. 屏幕空间反射
-- 世界空间
-  1. 体素 Voxel Cone Tracing
-  2. 距离场 Distance Field
-  3. 实时光线追踪
-
-
-
-**存储**
-
-1. 光照贴图
-2. 反射探针
-   1. 漫反射
-   2. 高光反射
-
-
-
-
-
-
-# 五、 阴影
+# 四、 阴影
 
 ## 1. 阴影映射 Shadow Mapping
 
@@ -885,7 +1167,8 @@ $$
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
    ```
-   
+```
+
 2. 深度贴图纹理坐标计算
    世界空间坐标 -> 光源空间坐标 -> 裁切空间的标准化设备坐标-> 根据深度贴图和坐标求出阴影深度值
 
@@ -895,7 +1178,7 @@ $$
    // shadow 只能为 0 或 1
    // 阴影中只有环境光，没有高光反射和漫反射
    vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
-   ```
+```
 
    
 
@@ -1327,7 +1610,50 @@ $$
    }
    ```
 
-   
+
+
+
+
+
+# 五、全局光照
+
+全局光照主要对以下生活中的现象进行模拟：
+
+1. **间接光照**
+   也称反射照明，通过其他物体反射的光线照亮物体的光照效果
+   ![](./images/light_indirect.png)
+2. **环境光遮蔽**
+   常用来模拟大面积的光源对整个场景的光照
+   ![](./images/light_AO.png)
+3. **反射**
+   指镜子会反射场景中一摸一样像的效果
+   ![](./images/light_bounce.png)
+4. **焦散**
+   光经过透明物体的折射后聚焦在一定范围上的效果
+   ![](./images/light_caustics.png)
+
+
+
+**离线渲染方案**
+
+1. 路径追踪 
+2. 光子映射 Photon Mapping 
+3. 辐射度 只能模拟漫反射现象
+
+
+
+**实时渲染方案**
+
+- 屏幕空间
+  1. 屏幕环境光遮蔽
+  2. 屏幕空间反射
+- 世界空间
+  1. 体素 Voxel Cone Tracing
+  2. 距离场 Distance Field
+  3. 实时光线追踪
+
+
+
 
 
 
@@ -1568,4 +1894,6 @@ void main() {
 - [【Unity】Compute Shader 计算 BRDF 存储到纹理](https://www.cnblogs.com/jaffhan/p/7389450.html)
 - [Create icosphere mesh by code](http://blog.andreaskahler.com/2009/06/creating-icosphere-mesh-in-code.html)
 - [概率密度函数(PDF)](https://www.jianshu.com/p/70b188d512aa)
+- [The Mathematics of Shading](https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/mathematics-of-shading)
+- [低差异序列（一）- 常见序列的定义及性质](https://zhuanlan.zhihu.com/p/20197323?columnSlug=graphics)
 

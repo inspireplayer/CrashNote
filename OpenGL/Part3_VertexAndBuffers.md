@@ -344,6 +344,11 @@ glReadPixels(0, 0, WIDTH, HEIGHT, GL_BGRA, GL_UNSIGNED_BYTE, 0);
 
 > 定义：framebuffer 是 OpenGL 一系列数据存储的集合
 
+**浮点帧缓冲 (Floating Point Framebuffer)**
+当一个帧缓冲的颜色缓冲的内部格式被设定成了 `GL_RGB16F`, `GL_RGBA16F`, `GL_RGB32F`  或者 `GL_RGBA32F` 时，这些帧缓冲被叫做，浮点帧缓冲可以存储超过 0.0 到 1.0 范围的浮点值
+
+当帧缓冲使用了一个标准化的定点格式(像 `GL_RGB` )为其颜色缓冲的内部格式，OpenGL 会在将这些值存入帧缓冲前自动将其约束到 0.0 到 1.0 之间
+
 
 
 ## 1. 不同种类的 framebuffer
