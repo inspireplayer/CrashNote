@@ -36,8 +36,6 @@ $$
 
 
 
-
-
 # 二、纹理基础
 
 纹理材质的反光性质
@@ -274,7 +272,7 @@ MipMap Level 计算
 
 切线空间的坐标系，原点：模型的顶点
 
-- Z 轴：N（Normal）法线方向（和 Z 轴的正方向始终保持一直）
+- Z 轴：N（Normal）法线方向（和 Z 轴的正方向始终保持一致）
 - X 轴：T（Tagent）切线方向，和纹理坐标的 X 轴（U）一致
 - Y 轴：B（Bitangent）副切线方向 ，和纹理坐标的 Y 轴（V）一致
 
@@ -563,9 +561,117 @@ $$
 
 
 
+## 4. 虚拟纹理 Virtual Texture
 
 
-# 五、纹理压缩
+
+
+
+
+
+# 五、色彩校正
+
+## 1. Gamma 矫正
+
+作用：我们在应用中配置的亮度和颜色是基于监视器所看到的，这样所有的配置实际上是非线性的亮度/颜色配置
+
+**源起**：
+
+1. 人眼看到的颜色亮度空间变化是**非线性**的
+2. 我们用来记录/展示画面的媒介上，动态范围和灰阶预算是有限的。（无论**纸张**还是屏幕）
+3. **韦伯定律**
+   **人对自然界刺激的感知，是非线性的，外界以一定的比例加强刺激，对人来说，这个刺激是均匀增长的**
+
+早期 CRT 阴极射线管显示器：显示的颜色亮度空间变化和人眼看到的基本相似，也是**非线性**的
+
+
+
+**1.1 Gamma 曲线就是把物理光强和美术灰度做了一个幂函数映射**
+Gamma 曲线就是将在显示器选中的颜色经过矫正后成为线性的便于计算，最后通过显示器又显示出来
+曲线如下图：
+
+- 灰色点线：线性颜色/亮度值
+- 红色虚线：gamma 矫正曲线
+- 红色实线：人眼和 CRT 显示器看到的效果
+
+![](./images/gamma_correction_gamma_curves.png)
+
+
+
+**1.2 sRGB 纹理**
+
+已经将线性空间的图片经过显示器一样的 gamma 处理后得到的图片
+
+使用方法：
+
+1. 开启 OpenGL 自己的 sRGB 帧缓冲，在颜色存储到缓冲前会先 gamma 2.2 矫正 sRGB 颜色
+
+   ```C++
+   // 开启 sRGB 帧缓冲
+   glEnable(GL_FRAMEBUFFER_SRGB);
+   
+   // 纹理格式设置为 sRGB，这样在读取 sRGB 图片的时候会首先做一个逆向的 gamma 矫正
+   // 防止最后的 sRGB 缓冲统一 gamma 矫正的时候，在这个纹理上进行重复矫正
+   glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+   ```
+
+2. 在 frame shader 里自定义 gamma 矫正
+
+   ```c++
+   void main() {
+       // do super fancy lighting 
+       [...]
+     
+       float gamma = 2.2;
+       // 1. 对于普通格式的纹理导入了 sRGB 图片，进行反向 gamma 矫正，防止 2. 统一 gamma 矫正时，做了重复的 gamma 矫正
+   		vec3 diffuseColor = pow(texture(diffuseSRGB, texCoords).rgb, vec3(gamma));
+       // 2. 对线性空间的颜色进行 gamma 矫正，让显示器显示的和实际计算的颜色一致
+       fragColor.rgb = pow(fragColor.rgb, vec3(1.0/gamma));
+   }
+   ```
+
+
+
+## 2. High Dynamic Range 高动态范围
+
+**源起**：人眼的工作原理，当光线很弱的啥时候，人眼会自动调整从而使过暗和过亮的部分变得更清晰，就像人眼有一个能自动根据场景亮度调整的自动曝光滑块
+
+HDR 渲染的真正优点在庞大和复杂的场景中应用复杂光照算法会被显示出来
+
+1. 浮点帧缓冲：可以存储超过 0.0 到 1.0 范围的浮点值
+	```c++
+    // GL_RGB16F 格式的浮点帧缓冲
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_FLOAT, NULL);  
+   ```
+
+2. **色调映射** Tone Mapping：将所有的浮点颜色通过一些方法映射到 <u>Low Dynamic Range</u> 0.0 - 1.0 的范围中
+
+   ```c++
+   uniform float exposure; // 无确定范围，曝光值
+   												// 越高：暗部细节越多
+   												// 越低：亮部细节越多
+   void main() {
+       const float gamma = 2.2;
+       vec3 hdrColor = texture(hdrBuffer, TexCoords).rgb;
+   
+       // Tone Mapping 方法 1: Reinhard 色调映射
+       // 分散整个 HDR 颜色值到 LDR 颜色值上，所有的值都有对应
+       vec3 mapped = hdrColor / (hdrColor + vec3(1.0));
+       // Tone Mapping 方法 2: 曝光色调映射
+       vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
+   
+       // Gamma 校正
+       mapped = pow(mapped, vec3(1.0 / gamma));
+   
+       color = vec4(mapped, 1.0);
+   }  
+   ```
+
+
+
+
+
+# 六、纹理压缩
 
 
 
@@ -583,10 +689,16 @@ $$
 6. [基于 ComputeShader 生成 Perlin Noise 噪声图](https://zhuanlan.zhihu.com/p/88518193)
 7. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
 8. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
-9. [Learning DirectX 12 – Lesson 4 – Textures](https://www.3dgep.com/learning-directx-12-4/)
-10. [Unity GPU优化(Occlusion Culling 遮挡剔除，LOD 多细节层次，GI 全局光照)](https://gameinstitute.qq.com/community/detail/120912)
-11. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
-12. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
+9. [A Standard Default Color Space for the Internet - sRGB](https://www.w3.org/Graphics/Color/sRGB)
+10. [为什么线性渐变的填充，直方图的两头比中间高？ - 黄一凯的回答 - 知乎](https://www.zhihu.com/question/61996849/answer/193452971)
+11. [Learning DirectX 12 – Lesson 4 – Textures](https://www.3dgep.com/learning-directx-12-4/)
+12. [Unity GPU优化(Occlusion Culling 遮挡剔除，LOD 多细节层次，GI 全局光照)](https://gameinstitute.qq.com/community/detail/120912)
+13. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
+14. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
 
 
 
+
+  ```
+
+  ```

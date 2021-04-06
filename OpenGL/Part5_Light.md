@@ -1167,7 +1167,6 @@ $$
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
    ```
-```
 
 2. 深度贴图纹理坐标计算
    世界空间坐标 -> 光源空间坐标 -> 裁切空间的标准化设备坐标-> 根据深度贴图和坐标求出阴影深度值
@@ -1178,7 +1177,7 @@ $$
    // shadow 只能为 0 或 1
    // 阴影中只有环境光，没有高光反射和漫反射
    vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
-```
+	```
 
    
 
@@ -1733,7 +1732,7 @@ glDrawBuffers(3, attachments);
                        
 // 2. 片源着色器绘制 buffer
 #version 330 core
-layout (location = 0) out vec3 gPosition;
+layout (location = 0) out vec3 gPosition;  // location = 0 和 frame buffer 的 GL_COLOR_ATTACHMENT0 对应
 layout (location = 1) out vec3 gNormal;
 layout (location = 2) out vec4 gAlbedoSpec;
 
