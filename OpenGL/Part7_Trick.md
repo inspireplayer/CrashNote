@@ -167,7 +167,7 @@ HDR 原本只是被运用在摄影上，摄影师对同一个场景采取不同�
 
 ## 1. 描边
 
-方法一：
+### 1.1 向外扩张
 
 1. 让背面面片在视角空间下把模型顶点沿着法线的方向**向外扩张**一段距离，让背部轮廓可见
    为了防止背面面片有 Z 轴方向内凹的模型，先给让背面面片尽可能平整
@@ -185,7 +185,7 @@ HDR 原本只是被运用在摄影上，摄影师对同一个场景采取不同�
 
 
 
-方法二：
+### 1.2 检测轮廓线
 
 1. 检测边是否为轮廓线
    通过判断两个相邻的三角片面是否一个朝正面，一个朝背面
@@ -204,7 +204,147 @@ HDR 原本只是被运用在摄影上，摄影师对同一个场景采取不同�
 
 ## 3. 3D 拾取
 
+### 3.1 颜色拾取
 
+1. **绘制颜色索引**
+   创建 FrameBuffer，附着一张颜色纹理 RGB，一张深度纹理
+   根据物体的 ID，物体的绘制批次 来给物体离屏渲染着色
+    ```c
+   #version 330
+   
+   uniform uint gObjectIndex; // 绘制对象的 ID：随着对象的更新而更新
+   uniform uint gDrawIndex;   // 绘制批次的 ID：对象的绘制批次
+   
+   out vec3 FragColor;
+   
+   void main()
+   {
+     // gl_PrimitiveID：默认不使用 GS 为 0，使用 GS 时会被赋值，每次 drawcall 会更新
+     // gl_PrimitiveID + 1：为了区分背景色黑色和索引色
+     FragColor = vec3(float(gObjectIndex), float(gDrawIndex), float(gl_PrimitiveID + 1));
+   }
+    ```
+
+2. **拾取颜色**
+   通过 glReadPixels 拾取点选的颜色值，根据颜色值判断点击的物体
+   
+    ```c
+    BYTE bArray[3];
+    glReadPixels(mp.x, mp.y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, bArray);
+    ```
+
+
+
+### 3.2 射线拾取
+
+1. **确定射线**
+   将屏幕的点击位置映射到近平面和远平面的点，两个点的连线就是 射线
+
+   ![](./images/ray.jpg)
+
+   ```c
+   // 直接调用 glm 的 unProject 函数来确定射线
+   glm::vec3 glm::unProject(glm::vec3 const& win, 
+                            glm::mat4 const& model, 
+                            glm::mat4 const& proj, 
+                            glm::ivec4 const& viewport);
+   
+   // 以下为 glm unProject 的具体实现
+   template<typename T, typename U, qualifier Q>
+   GLM_FUNC_QUALIFIER vec<3, T, Q> unProject(vec<3, T, Q> const& win, 
+                                             mat<4, 4, T, Q> const& model, 
+	                                          mat<4, 4, T, Q> const& proj, 
+                                             vec<4, U, Q> const& viewport)
+   {
+   #		if GLM_CONFIG_CLIP_CONTROL & GLM_CLIP_CONTROL_ZO_BIT
+   	return unProjectZO(win, model, proj, viewport);
+   #		else
+   	return unProjectNO(win, model, proj, viewport);
+   #		endif
+   }
+   
+   template<typename T, typename U, qualifier Q>
+   GLM_FUNC_QUALIFIER vec<3, T, Q> unProjectNO(vec<3, T, Q> const& win, 
+                                               mat<4, 4, T, Q> const& model, 
+                                               mat<4, 4, T, Q> const& proj, 
+                                               vec<4, U, Q> const& viewport)
+   {
+     mat<4, 4, T, Q> Inverse = inverse(proj * model);
+   
+     vec<4, T, Q> tmp = vec<4, T, Q>(win, T(1));
+     tmp.x = (tmp.x - T(viewport[0])) / T(viewport[2]);
+     tmp.y = (tmp.y - T(viewport[1])) / T(viewport[3]);
+     tmp = tmp * static_cast<T>(2) - static_cast<T>(1);
+   
+     vec<4, T, Q> obj = Inverse * tmp;
+     obj /= obj.w;
+   
+     return vec<3, T, Q>(obj);
+   }
+   
+   template<typename T, typename U, qualifier Q>
+   GLM_FUNC_QUALIFIER vec<3, T, Q> unProjectZO(vec<3, T, Q> const& win, 
+                                               mat<4, 4, T, Q> const& model, 
+                                               mat<4, 4, T, Q> const& proj, 
+                                               vec<4, U, Q> const& viewport)
+   {
+     mat<4, 4, T, Q> Inverse = inverse(proj * model);
+     
+     vec<4, T, Q> tmp = vec<4, T, Q>(win, T(1));
+     tmp.x = (tmp.x - T(viewport[0])) / T(viewport[2]);
+     tmp.y = (tmp.y - T(viewport[1])) / T(viewport[3]);
+     tmp.x = tmp.x * static_cast<T>(2) - static_cast<T>(1);
+     tmp.y = tmp.y * static_cast<T>(2) - static_cast<T>(1);
+   
+     vec<4, T, Q> obj = Inverse * tmp;
+     obj /= obj.w;
+   
+     return vec<3, T, Q>(obj);
+   }
+   ```
+   
+   
+   
+2. **找到射线的碰撞**
+   将每个物体的碰撞体设置为球体，求射线与球心最近的对象
+   判断射线是否与最近的球体相交（具体方法见 [三维距离检测/点到直线最近点](../LinearAlgebra/Part3_Triangles.md)）
+
+
+
+
+
+# 四、游戏引擎
+
+## 1. Handle 的作用
+
+**Handle 类似于指针，实际上是一个整数类型，不直接引用内存，可以有以下映射内存的方式**
+
+- 作为索引直接引用
+- 经过一系列加密方法映射到内存地址
+  比如：用 8 位密码将 16 位索引加密。将 4 位类型、4 位权限、8 位密码、16 位加密索引之后打包成一个 32 位的整数作为 Handle
+
+
+
+**Handle 的类型**
+
+通过给 Handle 套上结构体，确保在内存占用不变的情况下让编译器区分 Handle 类型，将问题前置到编译阶段
+
+```c
+struct VertexBufferHandle { uint16_t idx; };
+struct ProgramHandle { uint16_t idx; };
+```
+
+
+
+**设计接口时 Handle 比指针优势**
+
+1. 指针作用太强，可做的事情太多
+   接口设计中，功能刚刚好就够了，并非越多权限越好的，权限越多就越危险（不容易解耦）
+2. Handle 只是个整数，里面实现可以隐藏起来
+   假如直接暴露了指针，也就暴露了指针类型，用户就会看到更多的细节
+3. 所有资源在内部管理，通过 Handle 作为中间层，可以有效判断 Handle 是否合法，而防止了野指针的情况
+4. Handle 只是个整数，所有的语言都有整数这种类型，但并非所有语言都有指针
+   接口只出现 Handle，方便将实现绑定到各种语言
 
 
 
@@ -213,6 +353,7 @@ HDR 原本只是被运用在摄影上，摄影师对同一个场景采取不同�
 # 引用
 
 - [3D Picking](http://ogldev.atspace.co.uk/www/tutorial29/tutorial29.html)
+- [light house / opengl-selection-tutorial](http://www.lighthouse3d.com/tutorials/opengl-selection-tutorial/)
 - [learnopengl-Bloom](https://learnopengl-cn.github.io/05 Advanced Lighting/07 Bloom/)
 - [learnopengl-HDR](https://learnopengl-cn.github.io/05 Advanced Lighting/06 HDR/)
 - [learnopengl-AntiAliasing](https://learnopengl-cn.github.io/04 Advanced OpenGL/11 Anti Aliasing/)
@@ -220,4 +361,6 @@ HDR 原本只是被运用在摄影上，摄影师对同一个场景采取不同�
 - [OGL-Particle System using Transform Feedback](http://ogldev.atspace.co.uk/www/tutorial28/tutorial28.html)
 - [Open Dynamics Engine](http://www.ode.org)
 - [Open Dynamics Engine Doc](http://ode.org/ode-latest-userguide.html)
-
+- [bgfx 学习笔记（5）- Handle 的作用和分配](https://zhuanlan.zhihu.com/p/63012167)
+- [OGRE 的渲染流程分析](https://zhuanlan.zhihu.com/p/113368993)
+- [Redundancy vs dependencies: which is worse?](http://yosefk.com/blog/redundancy-vs-dependencies-which-is-worse.html)

@@ -206,9 +206,16 @@ MipMap Level 计算
 
 # 三、凹凸映射 bump mapping
 
+通常将法线贴图和高度贴图一起使用以达到逼真的效果
+
+- 法线贴图让网格中的起伏有凹凸效果
+- 高度贴图让网格中的起伏互相遮挡
+
+
+
 ## 1. 高度纹理 height map
 
-高度纹理：使用一张高度纹理来模拟表面上下高度的位移，然后得到修改后的法线值
+高度纹理：使用一张高度纹理来模拟表面上下高度的位移，然后得到修改后的法线值（白色区域是高区域，黑色区域是低区域）
 
 - 优点：非常直观，可以从高度纹理中明确的知道一个模型表面的凹凸情况
 - 缺点：计算较复杂，不能直接得到表面法线，需要通过像素的灰度值计算得到
@@ -324,7 +331,6 @@ MipMap Level 计算
   \begin{bmatrix} T\\ B \end{bmatrix}
   \end{align}
   $$
-  
 
 
 
@@ -340,6 +346,7 @@ T &= normalize(U - dot(U, N) * N) \\
 B &= normalize(cross(N, T))
 \end{align}
 $$
+
 
 
 ### 2.3 不同坐标空间的比较
@@ -389,6 +396,42 @@ $$
 
 
 
+## 5. Opacity 透明贴图
+
+贴图的不透明度：黑色是透明的部分，白色为不透明的部分，灰色为半透明的部分
+
+
+
+## 6. Ambient Occlusion 环境遮挡贴图
+
+模拟物体之间所产生的阴影，在不打光的时候增加体积感
+完全不考虑光线，单纯基于物体与其他物体越接近的区域，受到反射光线的照明越弱这一现象来模拟现实照明（的一部分）效果
+
+白色表示应接受完全间接光照的区域，以黑色表示没有间接光照
+
+
+
+## 7. Curvature 曲率贴图
+
+存储凹凸信息：黑色的值代表了凹区域，白色的值代表了凸区域，灰度值代表中性/平地
+
+
+
+## 8. Thickness 厚度贴图
+
+辅助制作表面散射 SSS：黑色代表薄的地方、白色代表厚的地方
+
+
+
+## 9. Lightmap 光照贴图
+
+在游戏引擎里做场景地图的时候会用到
+用于静态模型上的间接光照：将场景的光照结果烘培到模型贴图上，从而实现模拟现实光照效果，可以节省硬件资源
+
+
+
+
+
 # 四、高级纹理
 
 ## 1. 立方体纹理 Cube Map
@@ -396,15 +439,20 @@ $$
 立方体贴图 GL_TEXTURE_CUBE_MAP 
 
 ```c
+// shader
 uniform samplerCube skybox;
-glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, ...)
+
+// CPU code
+glBindTexture(GL_TEXTURE_CUBE_MAP, _texID);
+glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, ...);
+glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 ```
 
 - 包含了 6 个 2D 纹理的纹理，每个 2D 纹理都组成了立方体的一个面，它通过一个方向向量来进行采样
   **方向向量的大小并不重要，只要提供了方向**
 
 - 纹理坐标：一般为世界坐标系下的顶点坐标（范围 -1，1）
-处于世界坐标系下，是一个由立方体中心出发指向立方体面的三维向量
+  处于世界坐标系下，是一个由立方体中心出发指向立方体面的三维向量
   贴图的顺序一般为：<u>右、左、上、下、前、后</u>
   
   ![](./images/texture_cube_map.png)
@@ -420,6 +468,37 @@ glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, ...)
 - 纹理环绕方式：超出采样部分取边界
 - 通过将输出位置的 z 分量等于它的 w 分量，让 z 分量永远等于 1.0，使 z 在透视除法时，深度始终是最大的 1
   `gl_Position = pos.xyww;`
+
+```glsl
+// VS
+#version 330 core
+layout (location = 0) in vec3 aPos;
+
+out vec3 TexCoords;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 model;
+
+void main() {
+    TexCoords = aPos;
+    vec4 pos = projection * view * model * vec4(aPos, 1.0);
+	  // 用 w 替换 z，让天空盒的深度值在进行深度除法后始终保持 1.0 的最大值，确保天空盒在最后绘制
+    gl_Position = pos.xyww;
+}
+
+// FS
+#version 330 core
+out vec4 FragColor;
+
+in vec3 TexCoords;
+
+uniform samplerCube skybox;
+
+void main() {
+    FragColor = texture(skybox, TexCoords);
+}
+```
 
 
 
@@ -444,6 +523,47 @@ $$
 $$
 
 ![](./images/texture_refraction.png)
+
+```glsl
+// VS
+#version 330 core
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec3 normal;
+
+out vec3 Normal;
+out vec3 Position;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 model;
+
+void main() {
+    Normal = mat3(transpose(inverse(model))) * normal;
+    Position = vec3(model * vec4(position, 1.0));
+    gl_Position = projection * view * model * vec4(position, 1.0);
+}
+
+// FS
+#version 330 core
+out vec4 FragColor;
+
+in vec3 Normal;
+in vec3 Position;
+
+uniform vec3 cameraPos;
+uniform samplerCube skybox;
+
+void main() {
+    vec3 I = normalize(Position - cameraPos);
+    vec3 R = reflect(I, normalize(Normal)); // 反射
+
+    // 折射
+    float ratio = 1.00 / 1.52;
+    R = refract(I, normalize(Normal), ratio);
+    FragColor = vec4(texture(skybox, R).rgb, 1.0);
+}
+
+```
 
 
 
@@ -486,13 +606,13 @@ $$
    
 2. 伪随机梯度生成
    根据晶格的位置 P 与随机种子，对晶格的每个顶点生成一个伪随机梯度，表示为一个二维向量
-经过**随机函数 gold_noise** 生成的随机的 x, y 后再归一化，最后用 grad 表
+   经过**随机函数 gold_noise** 生成的随机的 x, y 后再归一化，最后用 grad 表
 
    ```glsl
    #define PHI (1.61803398874989484820459 * 00000.1)
    #define PI (3.14159265358979323846264 * 00000.1)
    #define SQ2 (1.41421356237309504880169 * 10000.0)
-
+   
    float gold_noise(float2 pos, float seed) {
      return frac(tan(distance(pos * (PHI + seed), float2(PHI, PI))) * SQ2) * 2 - 1;
    }
@@ -696,9 +816,3 @@ HDR 渲染的真正优点在庞大和复杂的场景中应用复杂光照算法�
 13. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
 14. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
 
-
-
-
-  ```
-
-  ```

@@ -36,14 +36,16 @@ OpenGL 命令执行的结果影响 OpenGL 状态（由 OpenGL context 保存，�
 4. 共享上下文
 
    一个窗口的 Context 可以有多个，在某个线程创建后，所有 OpenGL 的操作都会转到这个线程来操作
-   两个线程同时 make current 到同一个绘制上下文，会导致程序崩溃
+   两个线程同时 make current 到同一个绘制上下文，会导致程序崩溃 
 
+   一个线程同一时间只能用一个上下文，一个线程可以切换多个上下文
+   
    一般每个窗口都有一个上下文，可以保证上下文间的不互相影响
    通过**创建上下文时传入要共享的上下文**，多个窗口的上下文之间图形资源可以共享
    可以共享的：纹理、shader、Vertex Buffer 等，外部传入对象
    不可共享的：Frame Buffer Object、Vertex Array Object（内存）、Vertex Buffer Object（显存）、等 OpenGL 内置容器**对象**
 
-   
+
 
 ## 3. OpenGL 的环境配置流程
 
@@ -161,6 +163,34 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
 
 ![](./images/pipeline_live.png)
 
+一般游戏引擎的绘制顺序
+
+```c
+// 每一帧：Draw layer > Draw Technique > Draw Pass
+// 每一 Pass：相关 view、相关 shader、相关 material、相关 object
+for each view {
+    bind view resources								// camera, environment...
+      
+    for each shader {
+        bind shader pipeline
+        bind shader resources					// shader control values
+          
+				for each material {
+        		bind material resources		// material params and textures
+              
+            for each object {
+              	bind object reources	// object transforms
+                draw object
+                  
+            } // object
+          
+        } // material
+      
+    } // shader
+  
+} // view
+```
+
 
 
 
@@ -194,7 +224,7 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
 
 - 深度测试
   深度缓冲中每个像素（或超采样）都有对应的值（通过三角形顶点深度信息差值得到）
-因为每个像素都有深度，所以不会存在两个图元交叉的深度问题
+  因为每个像素都有深度，所以不会存在两个图元交叉的深度问题
   ![](./images/depth_test.png)
   
 - alpha 混合
@@ -220,7 +250,6 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
   \alpha_M &= \alpha_B + (1-\alpha_B)\alpha_A
   \end{align}
   $$
-  
 
 开启 alpha 预乘的混合方式（假设：透明物体 B 在 A 前面）
   透明图像边缘是黑色，为了防止在混合多个透明物体时 alpha 遮罩外的颜色由于不是黑色 0，而带来的混合颜色的色差
@@ -270,7 +299,6 @@ $$
   Screen_x = (1 + x_{标准设备坐标}) \cdot {Pixel_{width} \over 2} \\
   Screen_y = (1 + y_{标准设备坐标}) \cdot {Pixel_{height} \over 2}
   $$
-  
 
 
 
@@ -359,4 +387,4 @@ NVIDIA 的 CG（C for Graphic）
 10. [Game Programming Patterns](http://gameprogrammingpatterns.com/contents.html)
 11. [Shader detached program](https://github.com/google/gapid/issues/398)
 12. [EarlyZ 和 PreZ 的区别](https://zhuanlan.zhihu.com/p/299798664)
-
+13. [【Ogre编程入门与进阶】第十章 Ogre场景管理](https://blog.csdn.net/zhanghua1816/article/details/8130251)

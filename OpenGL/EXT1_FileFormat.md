@@ -167,13 +167,26 @@ SVG 使用 XML 语法编写，并且可以在文本工具里修改（可以使�
 # 引用
 
 - [What are the different usecases of PNG vs. GIF vs. JPEG vs. SVG?](https://stackoverflow.com/questions/2336522/what-are-the-different-usecases-of-png-vs-gif-vs-jpeg-vs-svg)
+
 - [libpng](http://www.libpng.org/pub/png/libpng.html)
+
 - [www.w3.org/Graphics](https://www.w3.org/Graphics/JPEG/itu-t81.pdf)
+
 - [JPEG 解码器](https://zhuanlan.zhihu.com/p/27296876)
+
 - [使用 libjpeg 进行图片压缩](https://zhuanlan.zhihu.com/p/126728039)
+
 - [影像算法解析——JPEG 压缩算法](https://zhuanlan.zhihu.com/p/40356456)
+
 - [TGA 文件格式解析](http://www.twinklingstar.cn/2013/471/tga-file-format/)
+
 - [三维文件格式知多少 ](http://www.bgteach.com/article/132)
+
 - [三维软件知多少](http://www.bgteach.com/article/40)
+
 - [图片文件格式知多少 | jpeg、png、pdf、tga、tif、svg、esp、exr、hdr...](https://www.bgteach.com/article/133)
+
+- [游戏制作行业为什么使用TGA格式的贴图而不使用PNG格式？ - 韦易笑的回答 - 知乎 ](https://www.zhihu.com/question/340196227/answer/789538293)
+
+  
 

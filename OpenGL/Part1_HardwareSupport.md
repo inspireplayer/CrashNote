@@ -73,7 +73,7 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
 ### 1.3 OpenGL 的执行模型
 
 - 将线程按 Dispath、Work Group、Invocation 三个层次分组，如下图
-其中，Dispath 类似于 CUDA 的 Grid，Work Group 类似于 CUDA 的 Block
+  其中，Dispath 类似于 CUDA 的 Grid，Work Group 类似于 CUDA 的 Block
   ![](images/OpenGLProcessModel.png)
 
 
@@ -118,6 +118,7 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
 - 将渲染的一帧缓存分成一个个的区块（<u>适合显存和处理器分开的移动端，显存在主存上面</u>）
   当提交渲染命令的时候，GPU 不会立刻进行渲染，而是一帧内所有的渲染命令积攒起来，最后统一渲染。
   每次 GPU 通过中间缓冲器 [SRAM](https://baike.baidu.com/item/SRAM/7705927?fr=aladdin) 访问 [DRAM](https://baike.baidu.com/item/DRAM) 显存上的一小块区块执行渲染命令以降低带宽
+  （On-Chip buffer）
   
 - 遮蔽处理的部分**会**被渲染器处理
 
@@ -247,4 +248,4 @@ GPU 主要由 **显存(Device Memory)** 和 **流多处理器(Stream Multiproces
 4. [针对移动端 TBDR 架构 GPU 特性的渲染优化](https://blog.csdn.net/leonwei/article/details/79298381)
 5. [GPU架构图](https://blog.csdn.net/pizi0475/article/details/7573996)
 6. [渲染优化-从GPU的结构谈起](https://zhuanlan.zhihu.com/p/58694744)
-
+7. [Introduction to PowerVR for Developers](https://docs.imgtec.com/Architecture_Guides/PowerVR_Architecture/topics/powervr_architecture_tile_based_deferred_rendering__tbdr.html)

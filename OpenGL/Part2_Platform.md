@@ -519,6 +519,12 @@ layer.drawableProperties = @{
 
 
 
+### 2.2 GLKViewController
+
+GLKViewController 内含 GLKView，内部已经创建好了 OpenGL 的上下文，并且可以通过 `self.preferredFramesPerSecond` 来控制刷新帧率。详见 [Apple 官方文档](https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/DrawingWithOpenGLES/DrawingWithOpenGLES.html#//apple_ref/doc/uid/TP40008793-CH503-SW1)
+
+
+
 ## 3. EGL 环境配置
 
 ### 3.1 EGL 的 Context 
