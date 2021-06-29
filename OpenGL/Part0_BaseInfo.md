@@ -147,7 +147,7 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
 
 **lookat 矩阵** 
 
-- 作用：将世界空间坐标  乘以 lookat 矩阵 便是 相机的 观察空间
+- 作用：将世界空间坐标  乘以 lookat 矩阵 便是 相机的 观察空间，**观察空间基坐标和世界空间基坐标保持一致**
 - 构成：[相机 x 轴，相机 y 轴，相机 x 轴，标准化列向量 w]
 
 
@@ -169,14 +169,14 @@ OpenGL 创建上下文的操作在不同的操作(窗口)系统上是不同的�
 // 每一帧：Draw layer > Draw Technique > Draw Pass
 // 每一 Pass：相关 view、相关 shader、相关 material、相关 object
 for each view {
-    bind view resources								// camera, environment...
+    bind view resources					// camera, environment...
       
     for each shader {
         bind shader pipeline
-        bind shader resources					// shader control values
+        bind shader resources			// shader control values
           
-				for each material {
-        		bind material resources		// material params and textures
+			for each material {
+        		bind material resources	// material params and textures
               
             for each object {
               	bind object reources	// object transforms
@@ -200,7 +200,7 @@ for each view {
 
 基于以下管线流程，管线在**考虑到光照计算**时，在 m 个物体和 n 个光源下还分为
 
-1. 前向管线 $ O(m*n)$
+1. 前向管线 $O(m*n)$
    对场景中的每个物体着色，在每个光源下进行计算
 2. 延迟管线 $ O(m+n)$
    使用多个 Buffer 缓存光照需要的数据，在最后结合 Buffer 数据进行光照计算
@@ -266,7 +266,7 @@ $$
 
 
 
-例：OpenGL 4.4 渲染管线
+ 例：OpenGL 4.4 渲染管线
 
 ![](images/pipeline_gl4.4.png)
 
@@ -274,14 +274,12 @@ $$
 
 ## 2. 几何阶段的顶点变换过程
 
-![](images/coordinate.png)
-
 **投影会改变空间的旋向性**：空间从**右手坐标系**，经过投影转换为**左手坐标系**，离相机越远， Z 只越大
 
 **屏幕坐标和像素的映射关系**
 
 - 屏幕坐标是 2D 纹理坐标
-  归一化后的裁剪坐标转换到屏幕坐标的矩阵
+  归一化后的裁剪坐标转换到屏幕坐 标的矩阵
   $$
   \begin{bmatrix}
   {width \over 2} & 0 & 0 & {width \over 2} \\
@@ -299,6 +297,8 @@ $$
   Screen_x = (1 + x_{标准设备坐标}) \cdot {Pixel_{width} \over 2} \\
   Screen_y = (1 + y_{标准设备坐标}) \cdot {Pixel_{height} \over 2}
   $$
+
+
 
 
 
@@ -371,7 +371,7 @@ NVIDIA 的 CG（C for Graphic）
 
 
 
-
+ 
 
 # 引用
 

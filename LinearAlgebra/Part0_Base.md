@@ -52,7 +52,6 @@
 
 - 三维的张成空间
   ![](images/span2.png)
-  
 
 
 
@@ -469,7 +468,7 @@ $$
 
   ![](images/cross1.png)
 
-  扩展：特殊的行列式求法，其中 $({\hat x},{\hat y},{\hat z})$ 为基向量
+  扩展：特殊的行列式求法，其中 $({\hat x},{\hat y},{\hat z})$ 为基向量 （右手坐标系的叉乘公式）
   $$
   \begin{bmatrix} 
   \color{green}{v_1} \\  \color{red}{v_2} \\ \color{blue}{v_3}\\ 
@@ -630,7 +629,6 @@ $$
   \overrightarrow v_a &= {\overrightarrow M_{ab}}^{-1} \cdot \overrightarrow w_b
   \end{align}
   $$
-  
 
 目标 2： B 坐标系的线性变换（矩阵 P）转 A 坐标系的线性变换（矩阵 Q）
 
@@ -736,5 +734,4 @@ $$
     0 & \color{red}{2}\\
     \end{bmatrix}
   $$
-
 
