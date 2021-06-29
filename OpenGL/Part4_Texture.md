@@ -4,9 +4,9 @@
 
 根据三角形三个顶点的颜色来求整个三角面的插值颜色
 
-## 1. 2D 颜色插值
+## 1. 普通的插值方法
 
-方法一：根据高度比来插值
+方法一：根据**高度比**来插值
 
 ![](./images/linear_interpolate_triangle.png)
 $$
@@ -17,7 +17,7 @@ Color &= f_i * Color_i + f_j * Color_j + f_k * Color_k
 $$
 
 
-方法二：根据所占三角形面积来插值
+方法二：根据所占**三角形面积**来插值
 $$
 \begin{align}
 f_i &= {area(x, x_j, x_k) \over area(x_i, x_j, x_k)} \\
@@ -25,14 +25,113 @@ Color &= f_i * Color_i + f_j * Color_j + f_k * Color_k
 \end{align}
 $$
 
-## 2. 3D 颜色插值
 
-方法如下：
 
-1. 获取每个顶点的深度值 z
-2. 根据 $Z = 1 / z， P = \phi / z$ 计算每个顶点的 $Z_i$ 和 $P_i$
-3. 根据 2D 的三角形重心坐标由顶点信息分别计算最后的 Z 和 P
-4. 最后的插值为 P / Z​
+## 2. 在三角形的重心坐标系下做插值
+
+在三个顶点组成的平面内，方法如下：
+
+1. 将普通笛卡尔坐标系转化为重心坐标系
+2. 根据重心坐标计算不受透视投影影响的三个插值系数
+   这三个插值系数可以对当前三个顶点的任意属性进行插值
+
+
+
+### 2.1 计算重心坐标
+
+![](./images/barycentric.jpg)
+
+设 P 为 2D 空间内三角形 ABC 内任意一点，求三角形 ABC 以 AB，AC 为坐标轴的重心坐标 u, v
+$$
+\begin{align}
+\vec {AP} &= u \vec {AB} + v \vec {AC} \\
+A-P &= u(A-B) + v(A-C) \\
+P &= (1-u-v)A + uB + vC \\\\
+
+\vec {AP} &= u \vec {AB} + v \vec {AC} \\
+u \vec {AB} + v \vec {AC} + \vec {PA} &= 0 \\
+u (\vec {AB})_x + v (\vec {AC})_x + (\vec {PA})_x &= 0 \\
+u (\vec {AB})_y + v (\vec {AC})_y + (\vec {PA})_y &= 0 \\
+\begin{bmatrix}u & v & 1 \end{bmatrix} 
+\begin{bmatrix}(\vec {AB})_x \\ (\vec {AC})_x \\ (\vec {PA})_x \end{bmatrix} &= 0 \\
+\begin{bmatrix}u & v & 1 \end{bmatrix} 
+\begin{bmatrix}(\vec {AB})_y \\ (\vec {AC})_y \\ (\vec {PA})_y \end{bmatrix} &= 0 \\
+\begin{bmatrix}(\vec {AB})_x \\ (\vec {AC})_x \\ (\vec {PA})_x \end{bmatrix} \times 
+\begin{bmatrix}(\vec {AB})_y \\ (\vec {AC})_y \\ (\vec {PA})_y \end{bmatrix} &= \begin{bmatrix}u \\ v \\ 1 \end{bmatrix} \\\\
+
+u \vec {AB} + v \vec {AC} + \vec {PA} &= 0 \\
+a \vec {AB} + b \vec {AC} + c \vec {PA} &= 0 &u = {a \over c}, v ={b \over c} \\
+P &= (1-u-v)A + uB + vC \\
+P &= (1-{a \over c}-{b \over c})A + {a \over c}B + {b \over c}C
+\end{align}
+$$
+编码为
+
+```c
+// 将屏幕上的笛卡尔坐标系转换为 ABC 三角形内的重心坐标系
+vec3 barycentric(vec2 A, vec2 B, vec2 C, vec2 P) {
+    Vec3 s[2];
+    for (int i=2; i--; ) {
+        s[i][0] = B[i]-A[i];
+        s[i][1] = C[i]-A[i];
+        s[i][2] = A[i]-P[i];
+    }
+    Vec3f u = cross(s[0], s[1]);
+    if (0 == std::abs(u.z)) return Vec3f(-1,1,1);
+        
+    return Vec3f(1.f-(u.x+u.y)/u.z, u.x/u.z, u.y/u.z);
+}
+```
+
+
+
+### 2.2 根据重心坐标计算插值系数
+
+已知
+
+- 透视投影后 2D 屏幕空间的 三角形 ABC 的深度为 $Z_{P'} = \alpha' Z_{A'} + \beta' Z_{B'} +  \gamma' Z_{C'}$
+- $\alpha' + \beta' + \gamma' = 1$
+
+求：透视投影前 3D 裁剪空间的 三角形 ABC 的深度为 $Z_P = \alpha Z_A + \beta Z_B +  \gamma Z_C$
+$$
+\begin{align}
+1 &= \alpha' + \beta' + \gamma' \\
+{Z_P \over Z_P} &= {Z_A \over Z_A}\alpha' + {Z_B \over Z_B}\beta' + {Z_C \over Z_C}\gamma' \\
+{Z_P \over Z_P} &=
+\begin{bmatrix}Z_A & Z_B & Z_C\end{bmatrix}
+\begin{bmatrix}{1 \over Z_A}\alpha' \\ {1 \over Z_B}\beta' \\ {1 \over Z_C}\gamma' \end{bmatrix} \\
+Z_P &=
+\begin{bmatrix}Z_A & Z_B & Z_C\end{bmatrix}
+\begin{bmatrix}{1 \over Z_A}\alpha' \\ {1 \over Z_B}\beta' \\ {1 \over Z_C}\gamma' \end{bmatrix} Z_P \\
+Z_P &=
+\begin{bmatrix}Z_A & Z_B & Z_C\end{bmatrix}
+\begin{bmatrix}{Z_P \over Z_A}\alpha' \\ {Z_P \over Z_B}\beta' \\ {Z_P \over Z_C}\gamma' \end{bmatrix}\\
+Z_P &=
+\begin{bmatrix}Z_A & Z_B & Z_C\end{bmatrix}
+\begin{bmatrix}\alpha \\ \beta \\ \gamma \end{bmatrix}\\
+\\
+\alpha + \beta + \gamma &= 1\\
+{Z_P \over Z_A}\alpha' + {Z_P \over Z_B}\beta' + {Z_P \over Z_C}\gamma' &= 1\\
+Z_P &= {1 \over {{\alpha' \over Z_A} + {\beta' \over Z_B} + {\gamma' \over Z_C}}}
+\\
+
+\end{align}
+$$
+要通过这些插值其他属性的值 I，则
+$$
+\begin{align}
+I_P &= \begin{bmatrix} I_A & I_B & I_C \end{bmatrix}
+\begin{bmatrix} \alpha \\ \beta \\ \gamma \end{bmatrix}\\
+&= \begin{bmatrix} I_A & I_B & I_C \end{bmatrix}
+\begin{bmatrix} {Z_P \over Z_A}\alpha' \\ {Z_P \over Z_B}\beta' \\ {Z_P \over Z_C}\gamma'\end{bmatrix}\\
+&= \begin{bmatrix} {Z_P \over Z_A}I_A & {Z_P \over Z_B}I_B & {Z_P \over Z_C}I_C \end{bmatrix}
+\begin{bmatrix} \alpha' \\ \beta' \\ \gamma' \end{bmatrix}\\
+&= ({\alpha' \over Z_A}I_A + {\beta' \over Z_B}I_B + {\gamma' \over Z_C}I_C)Z_P \\
+&= ({\alpha' \over Z_A}I_A + {\beta' \over Z_B}I_B + {\gamma' \over Z_C}I_C) / {1 \over Z_P} \\
+&= { {\alpha' \over Z_A}I_A + {\beta' \over Z_B}I_B + {\gamma' \over Z_C}I_C \over {{\alpha' \over Z_A} + {\beta' \over Z_B} + {\gamma' \over Z_C}} }
+\end{align}
+$$
+
 
 
 
@@ -802,17 +901,19 @@ HDR 渲染的真正优点在庞大和复杂的场景中应用复杂光照算法�
 # 引用
 
 1. [Render To Texture](http://www.paulsprojects.net/opengl/rtotex/rtotex.html)
-2. [learnopengl-基础光照](https://learnopengl-cn.github.io/02 Lighting/02 Basic Lighting/)
-3. [learnopengl-法线贴图](https://learnopengl-cn.github.io/05%20Advanced%20Lighting/04%20Normal%20Mapping/)
-4. [learnopengl-立方体贴图](https://learnopengl-cn.github.io/04 Advanced OpenGL/06 Cubemaps/#_7)
-5. [Understanding Perlin Noise](https://flafla2.github.io/2014/08/09/perlinnoise.html)
-6. [基于 ComputeShader 生成 Perlin Noise 噪声图](https://zhuanlan.zhihu.com/p/88518193)
-7. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
-8. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
-9. [A Standard Default Color Space for the Internet - sRGB](https://www.w3.org/Graphics/Color/sRGB)
-10. [为什么线性渐变的填充，直方图的两头比中间高？ - 黄一凯的回答 - 知乎](https://www.zhihu.com/question/61996849/answer/193452971)
-11. [Learning DirectX 12 – Lesson 4 – Textures](https://www.3dgep.com/learning-directx-12-4/)
-12. [Unity GPU优化(Occlusion Culling 遮挡剔除，LOD 多细节层次，GI 全局光照)](https://gameinstitute.qq.com/community/detail/120912)
-13. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
-14. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
+2. [Lesson 2: Triangle rasterization and back face culling · ssloy/tinyrenderer Wiki (github.com)](https://github.com/ssloy/tinyrenderer/wiki/Lesson-2:-Triangle-rasterization-and-back-face-culling)
+3. [(PDF) Accelerated Half-Space Triangle Rasterization (researchgate.net)](https://www.researchgate.net/publication/286441992_Accelerated_Half-Space_Triangle_Rasterization)
+4. [learnopengl-基础光照](https://learnopengl-cn.github.io/02 Lighting/02 Basic Lighting/)
+5. [learnopengl-法线贴图](https://learnopengl-cn.github.io/05%20Advanced%20Lighting/04%20Normal%20Mapping/)
+6. [learnopengl-立方体贴图](https://learnopengl-cn.github.io/04 Advanced OpenGL/06 Cubemaps/#_7)
+7. [Understanding Perlin Noise](https://flafla2.github.io/2014/08/09/perlinnoise.html)
+8. [基于 ComputeShader 生成 Perlin Noise 噪声图](https://zhuanlan.zhihu.com/p/88518193)
+9. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
+10. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
+11. [A Standard Default Color Space for the Internet - sRGB](https://www.w3.org/Graphics/Color/sRGB)
+12. [为什么线性渐变的填充，直方图的两头比中间高？ - 黄一凯的回答 - 知乎](https://www.zhihu.com/question/61996849/answer/193452971)
+13. [Learning DirectX 12 – Lesson 4 – Textures](https://www.3dgep.com/learning-directx-12-4/)
+14. [Unity GPU优化(Occlusion Culling 遮挡剔除，LOD 多细节层次，GI 全局光照)](https://gameinstitute.qq.com/community/detail/120912)
+15. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
+16. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
 
