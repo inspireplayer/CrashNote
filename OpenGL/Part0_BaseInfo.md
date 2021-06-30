@@ -261,10 +261,99 @@ for each view {
 ```
 
 
+
 ### 2.1 视锥剔除 3D
 
+在世界空间下的视锥剔除流程（剔除的是包围盒）
 
+1. 计算包围要绘制物体的 AABB 盒
+2. 获得视锥体六个面的平面方程
+3. 判断 AABB 盒的最小点和最大点在六个面的内侧还是外侧
+4. 剔除掉最小和最大点完全在某一面外侧的物体
 
+```c++
+// 视锥体的六个平面方程，用于视锥剔除
+// 所得的法向都是指向内部的（面向原点）
+void GetViewingFrustumPlanesByProjM4(std::vector<glm::vec4> & result , const glm::mat4 &vp) {
+	//左侧  
+	result[0].x = vp[0][3] + vp[0][0];
+	result[0].y = vp[1][3] + vp[1][0];
+	result[0].z = vp[2][3] + vp[2][0];
+	result[0].w = vp[3][3] + vp[3][0];
+	//右侧
+	result[1].x = vp[0][3] - vp[0][0];
+	result[1].y = vp[1][3] - vp[1][0];
+	result[1].z = vp[2][3] - vp[2][0];
+	result[1].w = vp[3][3] - vp[3][0];
+	//上侧
+	result[2].x = vp[0][3] - vp[0][1];
+	result[2].y = vp[1][3] - vp[1][1];
+	result[2].z = vp[2][3] - vp[2][1];
+	result[2].w = vp[3][3] - vp[3][1];
+	//下侧
+	result[3].x = vp[0][3] + vp[0][1];
+	result[3].y = vp[1][3] + vp[1][1];
+	result[3].z = vp[2][3] + vp[2][1];
+	result[3].w = vp[3][3] + vp[3][1];
+	//Near
+	result[4].x = vp[0][3] + vp[0][2];
+	result[4].y = vp[1][3] + vp[1][2];
+	result[4].z = vp[2][3] + vp[2][2];
+	result[4].w = vp[3][3] + vp[3][2];
+	//Far
+	result[5].x = vp[0][3] - vp[0][2];
+	result[5].y = vp[1][3] - vp[1][2];
+	result[5].z = vp[2][3] - vp[2][2];
+	result[5].w = vp[3][3] - vp[3][2];
+}
+
+//点到平面距离 d =  Ax + By + Cz + D;
+// d < 0 点在平面法向反方向所指的区域
+// d > 0 点在平面法向所指的区域
+// d = 0 在平面上
+// d < 0为 false
+bool Point2Plane(const glm::vec3 &v,const glm::vec4 &p) {
+	return p.x * v.x + p.y * v.y + p.z * v.z + p.w >= 0;
+}
+
+std::vector<glm::vec4> ViewPlanes;
+//构造函数中
+ViewPlanes.resize(6, glm::vec4(0));
+
+void UpdateViewPlanes() {
+	ViewingFrustumPlanes(ViewPlanes,  ProjectMatrix * ViewMatrix);
+}
+
+bool ViewCull(const glm::vec4 &v1,const glm::vec4 &v2,const glm::vec4 &v3) {
+	glm::vec3 minPoint, maxPoint;
+	minPoint.x = min(v1.x, min(v2.x, v3.x));
+	minPoint.y = min(v1.y, min(v2.y, v3.y));
+	minPoint.z = min(v1.z, min(v2.z, v3.z));
+	maxPoint.x = max(v1.x, max(v2.x, v3.x));
+	maxPoint.y = max(v1.y, max(v2.y, v3.y));
+	maxPoint.z = max(v1.z, max(v2.z, v3.z));
+	// Near 和 Far 剔除时只保留完全在内的
+	if (!Point2Plane(minPoint, ViewPlanes[4]) || !Point2Plane(maxPoint, ViewPlanes[4])) {
+		return false;
+	}
+	if (!Point2Plane(minPoint, ViewPlanes[5]) || !Point2Plane(maxPoint, ViewPlanes[5])) {
+		return false;
+	}
+	if (!Point2Plane(minPoint, ViewPlanes[0]) && !Point2Plane(maxPoint, ViewPlanes[0])) {
+		return false;
+	}
+	if (!Point2Plane(minPoint, ViewPlanes[1]) && !Point2Plane(maxPoint, ViewPlanes[1])) {
+		return false;
+	}
+	if (!Point2Plane(minPoint, ViewPlanes[2]) && !Point2Plane(maxPoint, ViewPlanes[2])) {
+		return false;
+	}
+	if (!Point2Plane(minPoint, ViewPlanes[3]) && !Point2Plane(maxPoint, ViewPlanes[3])) {
+		return false;
+	}
+	return true;
+}
+```
 
 
 
@@ -287,7 +376,7 @@ for each view {
 
 
 
-### 3.1 观察/相机空间
+### 3.1 观察/相机 空间
 
 ![](./images/camera_axes.png)
 
@@ -335,7 +424,7 @@ cameraUp    = glm::normalize(glm::cross(cameraRight, cameraFront));
 
 
 
-### 3.2 透视/正交 投影
+### 3.2 透视/正交 投影变换
 
 将观察空间的坐标转换到投影空间（一个 Frustum 平截头体空间），详见 [矩阵变换，透视投影](../LinearAlgebra/Part1_Matrix.md)
 
@@ -391,7 +480,108 @@ $$
 
 
 
-### 3.3 透视除法和 NDC 空间
+### 3.3 视锥剔除 3D
+
+一个面的三个顶点如果都被剔除，则当前三角形被剔除
+
+```c
+std::uint8_t checkViewCut(const glm::vec4& v)
+{
+    auto ret = (std::uint8_t)0;
+    
+    if 		(v.x < -v.w) ret |= 1;
+    else if (v.x >  v.w) ret |= 2;
+    if 		(v.y < -v.w) ret |= 4;
+    else if (v.y >  v.w) ret |= 8;
+    if 		(v.z < -v.w) ret |= 16;
+    else if (v.z >  v.w) ret |= 32;
+    
+    return ret;
+}
+```
+
+
+
+### 3.4 齐次坐标裁剪
+
+假设 $P(x,y,z,w)$ 为投影空间内部的一个点，则
+$$
+-1 <= x/w <=1 \\
+-1 <= y/w <=1 \\
+-1 <= z/w <=1 \\
+
+-w <= x <= w \\
+-w <= y <= w \\
+-w <= z <= w
+$$
+由 [线与面的关系判断](../LinearAlgebra/Part3_Triangles.md) 可知，如果线 $Q_1Q_2$ 与面交与点 $I$，则
+$$
+\begin{align}
+Q_1&=(x_1,y_1,z_1,w_1) \\
+Q_2&=(x_2,y_2,z_2,w_2) \\\\
+I &= Q_1 + t(Q_2 - Q_1) \\
+w_1 + t(w_2 - w_1) &= x_1 + t(x_2 - x_1) \\
+t &= {{w_1 - x_1} \over (w_1 - x_1) - (w_2 - x_2)} 
+\end{align}
+$$
+注意：为了防止透视除法除的 $w$ 为 0，这里裁剪的时候还要裁剪掉一个 $w=1e-5$ 这样一个极小数的平面
+
+```c
+enum AXIS {
+    X = 0,
+    Y = 1,
+    Z = 2,
+    W = 3
+}
+
+// EX: 0,1,2,3
+//     3-0, 0-1, 1-2
+void clipInHomoCoord(std::vector<Vertex>& vertIn, std::vector<Vertex>& vertOut, AXIS axis, bool isNegative)
+{
+    vertOut.clear();
+
+    int preDot = -1;
+    int curDot = -1;
+    float w = 1.0f;
+    float flag = isNegative ? -1.0f : 1.0f;
+    for (int i = 0; i < vertIn.size(); ++i)
+    {
+        Vertex& preVert = vertIn[(i + vertIn.size() -1) % vertIn.size()];
+        Vertex& curVert = vertIn[i];
+        preDot = flag * preVert.position[axis] <= preVert.position.w ? 1 : -1；
+        curDot = flag * curVert.position[axis] <= curVert.position.w ? 1 : -1;
+        if (preDot * curDot < 0) // put intersection point first
+        {
+            w = preVert.position.w - flag * curVert.position[axis];
+            w = w / (w - (curVert.position.w - flag * curVert.position[axis]));
+            vertOut.push_back( lerp(preVert, curVert, w) ); 
+        }
+        if (curDot > 0)			// then put original point
+        {
+            vertOut.push_back(curVert);
+        }
+    }
+}
+
+// how to call clip function
+std::vector<Vertex> vertIn;
+std::vector<Vertex> vertOut;
+clipInHomoCoord(vertIn, vertOut, X, true);	// clip on x axis
+clipInHomoCoord(vertOut, vertIn, X, false);
+clipInHomoCoord(vertIn, vertOut, Y, true); 	// clip on y axis
+clipInHomoCoord(vertOut, vertIn, Y, false);
+clipInHomoCoord(vertIn, vertOut, Z, true);	// clip on z axis
+clipInHomoCoord(vertOut, vertIn, Z, false);
+
+auto& vertexOut = vertIn;	// output
+
+// draw point order must use trangles fan
+GL_TRIANGLE_FAN
+```
+
+
+
+### 3.5 透视除法和 NDC 空间
 
 通过透视除法将 <u>齐次坐标</u> 转换为的 <u>非齐次坐标</u> 具体见 [矩阵变换，齐次空间](../LinearAlgebra/Part1_Matrix.md)
 将坐标点从 投影空间 转换到 NDC （Normalized Device Coordinates  标准设备坐标系）空间
@@ -409,26 +599,7 @@ glm::vec4 ndc = glm::vec4(proj.x / proj.w,
 
 
 
-### 3.4 视锥剔除 3D
-
-```c
-std::uint8_t checkViewCut(const glm::vec4& v)
-{
-    auto ret = (std::uint8_t)0;
-    if (v.x < -v.w) ret |= 1;
-    if (v.x >  v.w) ret |= 2;
-    if (v.y < -v.w) ret |= 4;
-    if (v.y >  v.w) ret |= 8;
-    if (v.z < -v.w) ret |= 16;
-    if (v.z >  v.w) ret |= 32;
-    
-    return ret;
-}
-```
-
-
-
-### 3.5 将坐标映射到屏幕上
+### 3.6 将坐标映射到屏幕上
 
 **屏幕坐标和像素的映射关系**
 
@@ -451,6 +622,15 @@ std::uint8_t checkViewCut(const glm::vec4& v)
   Screen_x = (1 + x_{标准设备坐标}) \cdot {Pixel_{width} \over 2} \\
   Screen_y = (1 + y_{标准设备坐标}) \cdot {Pixel_{height} \over 2}
   $$
+
+
+
+### 3.7 视口剔除 2D
+
+光栅化时，根据设置的 Viewport 大小来限定光栅化范围（限定逐行光栅化的行数和列数）
+以达到只有视口内部的数据被刷新了，避免了不必要的计算
+
+
 
 
 
@@ -542,4 +722,7 @@ $$
 17. [3D Clipping in Homogeneous Coordinates. | Development Chaos Theory (chaosinmotion.com)](https://chaosinmotion.com/2016/05/22/3d-clipping-in-homogeneous-coordinates/)
 18. [计算机图形学补充2：齐次空间裁剪(Homogeneous Space Clipping) - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/162190576)
 19. [从零开始的软渲染器（2.5）- 再谈裁剪与剔除 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/97371838)
+20. [Clipping using homegeneous coordinates by James F. Blinn and Martin E. Newell](https://link.zhihu.com/?target=https%3A//fabiensanglard.net/polygon_codec/clippingdocument/p245-blinn.pdf)
+21. [CLIPPING by Kenneth I. Joy](https://link.zhihu.com/?target=https%3A//fabiensanglard.net/polygon_codec/clippingdocument/Clipping.pdf)
+22. [Clipping implementation](https://link.zhihu.com/?target=https%3A//fabiensanglard.net/polygon_codec/)
 

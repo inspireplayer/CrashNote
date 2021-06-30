@@ -85,7 +85,7 @@ $$
 
 ```c++
 class Line {
-	vec3 Pos;
+  vec3 Pos;
   vec3 Direction;
 };
 
@@ -220,9 +220,35 @@ $$
 
 
 
+# 三、三维区域检测
+
+## 1. 点与面的关系判断
+
+![](./images/point_plan.jpg)
+
+对于平面 plane 和其法线 $\vec n$
+
+- $(Q-P) \cdot \vec n > 0$，Q 在平面 plane 外侧 out
+- $(Q-P) \cdot \vec n = 0$，Q 在平面 plane 上
+- $(Q-P) \cdot \vec n < 0$，Q 在平面 plane 内侧 in
 
 
-# 三、区域划分
+
+## 2. 线与面的关系判断
+
+![](./images/line_plan.jpg)
+
+对于任意一条直线 $Q_1Q_2$，则
+
+- $(Q_1-P) \cdot \vec n > 0, \space (Q_2-P) \cdot \vec n > 0$，直线 $Q_1Q_2$ 在平面 plane 外侧 out
+- $(Q_1-P) \cdot \vec n < 0, \space (Q_2-P) \cdot \vec n < 0$，直线 $Q_1Q_2$ 在平面 plane 内侧 in
+- $((Q_1-P) \cdot \vec n )* ((Q_2-P) \cdot \vec n) < 0$，直线 $Q_1Q_2$ 与平面 plane 有交点
+
+
+
+
+
+# 四、区域划分
 
 根据划分条件的不同，可以采用不同的划分结构
 
@@ -257,4 +283,7 @@ $$
 3. [从零开始手敲次世代游戏引擎（四十五）](https://zhuanlan.zhihu.com/p/34344829?from_voters_page=true)
 4. [GJK 检测算法](https://www.cnblogs.com/alps/p/12822653.html)
 5. [Building a Collision Engine Part 1: 2D GJK Collision Detection](https://blog.hamaluik.ca/posts/building-a-collision-engine-part-1-2d-gjk-collision-detection/)
+6. [Clipping using homegeneous coordinates by James F. Blinn and Martin E. Newell](https://link.zhihu.com/?target=https%3A//fabiensanglard.net/polygon_codec/clippingdocument/p245-blinn.pdf)
+7. [CLIPPING by Kenneth I. Joy](https://link.zhihu.com/?target=https%3A//fabiensanglard.net/polygon_codec/clippingdocument/Clipping.pdf)
+8. [Clipping implementation](https://link.zhihu.com/?target=https%3A//fabiensanglard.net/polygon_codec/)
 
