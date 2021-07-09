@@ -201,6 +201,8 @@ $$
 
 
 
+
+
 ## 3. Blinn-Phong 光照模型
 
 $$
@@ -236,6 +238,62 @@ Blinn-Phong 较 Phong 具有更真实的光照效果
 
 ![](./images/light_comparrison2.png)
 
+
+
+示例代码：
+
+
+```glsl
+// VS
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoords;
+
+out vec3 FragPos;
+out vec3 Normal;
+out vec2 TexCoords;
+
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
+
+void main() {
+    // Word coordinate
+    FragPos = vec3(model * vec4(aPos, 1.0));
+    
+    // mode 4D to 3D for remove translate
+    Normal = mat3(transpose(inverse(model))) * aNormal;  
+    TexCoords = aTexCoords;
+    
+    gl_Position = projection * view * vec4(FragPos, 1.0);
+}
+
+// FS
+vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
+{
+    // lightDir from frag to light
+    vec3 lightDir = normalize(light.position - fragPos);
+    
+    // diffuse shading
+    float diff = max(dot(normal, lightDir), 0.0);
+    
+    // specular shading
+    vec3 halfwayDir = normalize(viewDir + lightDir);
+    float spec = pow(max(dot(viewDir, halfwayDir), 0.0), material.shininess);
+    
+    // combine results
+    vec3 ambient = light.ambient * vec3(texture(material.diffuse, TexCoords));
+    vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuse, TexCoords));
+    vec3 specular = light.specular * spec * vec3(texture(material.specular, TexCoords));
+    
+    // attenuation
+    float distance = length(light.position - fragPos);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance)); 
+
+    return (ambient + diffuse + specular) * attenuation;
+}
+```
 
 
 
@@ -1040,6 +1098,28 @@ $$
 
 ![](./images/irradiance.png)
 
+```glsl
+vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir)
+{
+    vec3 lightDir = normalize(-light.direction);
+    
+    // diffuse shading
+    float diff = max(dot(normal, lightDir), 0.0);
+    
+    // specular shading
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    
+    // combine results
+    vec3 ambient = light.ambient * vec3(texture(material.diffuse, TexCoords));
+    vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuse, TexCoords));
+    vec3 specular = light.specular * spec * vec3(texture(material.specular, TexCoords));
+    
+    return (ambient + diffuse + specular);
+}
+
+```
+
 
 
 ## 2. 点光源 Point light
@@ -1092,6 +1172,33 @@ $$
 
 
 
+```glsl
+vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
+{
+    vec3 lightDir = normalize(light.position - fragPos);
+    
+    // diffuse shading
+    float diff = max(dot(normal, lightDir), 0.0);
+    
+    // specular shading, func reflect need inverse direction of input light
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    
+    // combine results
+    vec3 ambient = light.ambient * vec3(texture(material.diffuse, TexCoords));
+    vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuse, TexCoords));
+    vec3 specular = light.specular * spec * vec3(texture(material.specular, TexCoords));
+    
+    // attenuation
+    float distance = length(light.position - fragPos);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));   
+
+    return (ambient + diffuse + specular) * attenuation;
+}
+```
+
+
+
 ## 3. 聚光 Spot light
 
 聚光：只朝一个特定方向而不是所有方向照射光线，只有在聚光方向的特定半径内的物体才会被照亮，其它的物体都会保持黑暗
@@ -1119,6 +1226,38 @@ $$
   $\phi$ 为外切光角，$\gamma$ 为内切光角（$\phi$、$\gamma$ 一般作为聚光的属性，都是常数）
 
   $I = {\theta - \phi \over cos\gamma - cos\phi}$
+
+
+
+```glsl
+vec3 CalcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
+{
+    vec3 lightDir = normalize(light.position - fragPos);
+    
+    // diffuse shading
+    float diff = max(dot(normal, lightDir), 0.0);
+    
+    // specular shading
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    
+    // combine results
+    vec3 ambient = light.ambient * vec3(texture(material.diffuse, TexCoords));
+    vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuse, TexCoords));
+    vec3 specular = light.specular * spec * vec3(texture(material.specular, TexCoords));
+    
+    // attenuation
+    float distance = length(light.position - fragPos);
+    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));  
+
+    // spotlight intensity
+    float theta = dot(lightDir, normalize(-light.direction)); 
+    float epsilon = light.cutOff - light.outerCutOff;
+    float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
+    
+    return (ambient + diffuse + specular) * attenuation * intensity;
+}
+```
 
 
 
@@ -1152,11 +1291,12 @@ $$
 
 方法：
 
-1. 渲染深度贴图（阴影贴图）
+1. **渲染深度贴图（阴影贴图）**
    以光的位置为视角进行渲染，我们能看到的东西都将被点亮，看不见的是阴影
    以光源的类型选择 正交投影 或者 透视投影
    
    ```c
+   // 存储的是实际 Z 的深度值，没有标准化（这个时候的 Z 无法确定输入范围）
    GLuint depthMap;
    glGenTextures(1, &depthMap);
    glBindTexture(GL_TEXTURE_2D, depthMap);
@@ -1167,8 +1307,8 @@ $$
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
    ```
-
-2. 深度贴图纹理坐标计算
+   
+2. **深度贴图纹理坐标计算**
    世界空间坐标 -> 光源空间坐标 -> 裁切空间的标准化设备坐标-> 根据深度贴图和坐标求出阴影深度值
 
 3. 计算片段是否在阴影之中：若当前坐标的 Z 值比深度贴图的值大，则物体在阴影后面，物体有阴影
