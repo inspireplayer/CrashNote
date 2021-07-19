@@ -306,6 +306,8 @@ glBindTexture(GL_TEXTURE_2D, textureId);
 glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA, width, height, 0, GL_BGRA, GL_UNSIGNED_BYTE, data);
 ```
 
+
+
 通过 PBO 加载纹理（PBO 创建时已经加载纹理数据）
 
 ```c

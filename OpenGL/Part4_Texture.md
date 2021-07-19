@@ -70,22 +70,29 @@ $$
 ```c
 // 将屏幕上的笛卡尔坐标系转换为 ABC 三角形内的重心坐标系
 vec3 barycentric(vec2 A, vec2 B, vec2 C, vec2 P) {
-    Vec3 s[2];
+    vec3 s[2];
     for (int i=2; i--; ) {
         s[i][0] = B[i]-A[i];
         s[i][1] = C[i]-A[i];
         s[i][2] = A[i]-P[i];
     }
-    Vec3f u = cross(s[0], s[1]);
-    if (0 == std::abs(u.z)) return Vec3f(-1,1,1);
+    vec3 u = cross(s[0], s[1]);
+    if (0 == std::abs(u.z)) return vec3(-1,1,1);
         
-    return Vec3f(1.f-(u.x+u.y)/u.z, u.x/u.z, u.y/u.z);
+    return vec3(1.f-(u.x+u.y)/u.z, u.x/u.z, u.y/u.z);
 }
 ```
 
 
 
 ### 2.2 根据重心坐标系计算插值系数
+
+**注意：**
+
+- 以下使用的深度都是<u>线性深度</u>，实际存储的是非线性深度，需要转换一下
+- 对于非线性深度的插值，必须是<u>非透视矫正</u>的插值系数
+
+
 
 已知
 
@@ -131,7 +138,6 @@ I_P &= \begin{bmatrix} I_A & I_B & I_C \end{bmatrix}
 &= { {\alpha' \over Z_A}I_A + {\beta' \over Z_B}I_B + {\gamma' \over Z_C}I_C \over {{\alpha' \over Z_A} + {\beta' \over Z_B} + {\gamma' \over Z_C}} }
 \end{align}
 $$
-
 
 
 
@@ -299,7 +305,57 @@ LOD 0 为原始尺寸，从 LOD 1 开始，LOD n 的纹理宽高为 LOD n-1 的�
 
 MipMap Level 计算
 
-![](./images/conpute_mipmaplevel.png)
+<img src="./images/conpute_mipmaplevel.png" style="zoom:150%;" />
+
+
+
+### 2.5 圆内均匀随机采样
+
+![](./images/sample.png)
+
+1. 一般圆内随机采样的方式如图 2，其中 a，b 为均匀的随机数
+   这种变换的局部性保持很差，如果两点在笛卡尔坐标系下连续，那么投影到圆后的两个点同样是连续的。但是，反过来就不一定成立了。
+
+$$
+\begin{align}
+r &= \sqrt a \\
+\theta &= 2 \pi \space b \\\\
+(u, v) &= (r\cos \theta, r\sin \theta) \\
+\end{align}
+$$
+
+2. 一种较好的改进方式如图 3，其中 a，b 为均匀的随机数
+   具体论证见论文 [ A Low Distortion Map Between Disk and Square | Semantic Scholar](https://www.semanticscholar.org/paper/A-Low-Distortion-Map-Between-Disk-and-Square-Shirley-Chiu/43226a3916a85025acbb3a58c17f6dc0756b35ac)
+
+$$
+\begin{align}
+r &= \sqrt a \\
+\theta &= {\pi \space b  \over 4 \space a}
+\end{align}
+$$
+
+3. [泊松圆盘采样 Poisson Disk](https://bost.ocks.org/mike/algorithms/#sampling)
+   由于采样计算方法复杂，大家多用查表法来提前存储采样结果，然后再用旋转提前存储采样点的方式得到伪随机采样点的坐标![](./images/sample_poisson_disk.png)
+
+   ```c++
+   glm::vec2 sample(int numCandidates, const std::vector<glm::vec2>& samples) 
+   {
+     float bestDistance = 0;
+     glm::vec2 bestCandidate;
+     for (int i = 0; i < numCandidates; ++i) {
+       glm::vec2 c(Math.random() * width, Math.random() * height);
+       float d = glm::distance(findClosest(samples, c), c);
+       if (d > bestDistance) {
+         bestDistance = d;
+         bestCandidate = c;
+       }
+     }
+   
+     return bestCandidate;
+   }
+   ```
+
+
 
 
 
@@ -916,4 +972,5 @@ HDR 渲染的真正优点在庞大和复杂的场景中应用复杂光照算法�
 14. [Unity GPU优化(Occlusion Culling 遮挡剔除，LOD 多细节层次，GI 全局光照)](https://gameinstitute.qq.com/community/detail/120912)
 15. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
 16. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
+17. [深入探索透视纹理映射（下）](https://blog.csdn.net/popy007/article/details/5570803)
 

@@ -595,7 +595,7 @@ GL_TRIANGLE_FAN
 glm::vec4 proj;
 
 // 如果 w 为 0，表示一个三维坐标点，则 令 w 为 1.0，表示一组齐次坐标点
-if (0 == proj.w) proj.w = 1.0f;
+if (0 == proj.w) proj.w = 1e-5f;
 
 // Scope: [-1, 1]
 glm::vec4 ndc = glm::vec4(proj.x / proj.w, 

@@ -502,6 +502,8 @@ $$
 
 ## 6. PBR 计算简化代码实现
 
+预计算的方法 **Precomputation-based methods**
+
 ```c
 // 方法一：根据统一数据计算 FS
 #version 330 core
@@ -1284,10 +1286,37 @@ $$
 
 
 
-
 # 四、 阴影
 
-## 1. 阴影映射 Shadow Mapping
+## 1. 阴影效果分析
+
+**阴影具有近实（边缘锐利清晰），远虚（边缘模糊）的效果**
+
+根据被遮挡程度，阴影的类型可分为：
+
+1. lit 照亮：没有被遮挡
+2. umbra 本影区：完全被遮挡
+3. penumbra 半影区：部分被遮挡
+
+![](./images/shadow_map.png)
+
+
+
+## 2. 阴影映射 Shadow Mapping
+
+注意：
+
+- 由于阴影数据的精度问题，光源距离物体越远效果越好
+- 点光源的阴影（透视投影）需要更高的精度和更小的竖直方向的视角
+- 法线最好采用法线贴图，顶点法线生成的阴影在一些特殊视角会有阴影形变问题
+
+
+
+整体思路
+
+![](./images/shadow_map2.png)
+
+
 
 方法：
 
@@ -1351,24 +1380,35 @@ $$
 
    ![](./images/shadow_line.png)
 
-   **解决方案**：阴影偏移（shadow bias）
-   根据对阴影贴图应用一个**根据物体表面朝向和光线的角度**变化的偏移量
+   **解决方案**：阴影偏移（shadow bias）+ 深度纹理的线性采样 + 精度修正
+   根据对阴影贴图应用一个**随 物体表面朝向和光线的角度**变化的偏移量
 
    ```c
+   // 1. 阴影偏移
    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
    float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
-   ```
-
-   ![](./images/shadow_acne_bias.png)
-
-   这样会带来一个问题 —— 悬浮
-
-   ![](./images/shadow_peter_panning.png)
-
-   解决悬浮的一种方法：通过在生成阴影深度贴图时采用正面剔除的方式，只保留实体物体背面阴影深度，这样阴影的深度更真实，由于偏移出现的部分多余的阴影也会由于阴影深度的更精确而消失，但是地板的深度会去掉
-
    
-
+   // 2. 精度问题 
+   // 2.1 精度打包
+   vec4 bitShift = vec4(1.0, 256.0, 256.0 * 256.0, 256.0 * 256.0 * 256.0);
+   const vec4 bitMask = vec4(1.0/256.0, 1.0/256.0, 1.0/256.0, 0.0);
+   vec4 rgbaDepth = fract(gl_FragCoord.z * bitShift);
+   rgbaDepth -= rgbaDepth.gbaa * bitMask;
+   
+   // 2.2 精度解包
+   
+   ```
+   
+   ![](./images/shadow_acne_bias.png)
+   
+   这样会带来一个问题 —— 悬浮
+   
+   ![](./images/shadow_peter_panning.png)
+   
+   解决悬浮的一种方法：通过在生成阴影深度贴图时采用正面剔除的方式，只保留实体物体背面阴影深度，这样阴影的深度更真实，由于偏移出现的部分多余的阴影也会由于阴影深度的更精确而消失，但是地板的深度会去掉
+   
+   
+   
 4. 阴影贴图有一定的范围，无法覆盖所有场景
 
    ![](./images/shadow_texture_scope.png)
@@ -1392,7 +1432,84 @@ $$
 
 
 
-## 2. 级联式纹理映射 Cascaded Shadow Map（CSM）
+## 3. Percentage-Closer Soft Shadows（PCSS）
+
+PCF 由于采样区域是固定大小的，因此会在所有地方展示同样形状的软阴影。
+为了做到**近实远虚**的效果，我们需要一个系数来控制 PCF 的步长，让近处 PCF步长短（清晰），远处 PCF 步长长（模糊）
+
+![](./images/shadow_PCSS.png)
+
+
+$$
+\begin{align}
+{W_{Penumbra} \over W_{Light}} &= {{(d_{Receiver} - d_{Blocker})} \over W_{Blocker}} \\
+W_{Penumbra} &= {{(d_{Receiver} - d_{Blocker})}  W_{Light} \over W_{Blocker}}
+\end{align}
+$$
+
+在计算平均深度时，可以使用 mipmap 来加速平均深度的计算，通过减少采样次数的方式来提高效率
+
+```c++
+#define BIAS 		5e-5
+#define nSamples 	8
+
+float findAVGBlocker(const vec3& coords, const float& bias)
+{
+    int blockerCount = 0;
+    float totalDepth = 0;
+    for (int i = 0; i < nSamples - 2; ++i) {
+        vec2 uv = vec2(coords.x, coords.y) + u_offsets[i]；
+        float shadowMapDepth = sample2D(texDepth, uv);
+        if (coord.z > (bias + shadowMapDepth)) {
+            totalDepth += shadowMapDepth;
+            blockCount += 1;
+        }
+    }
+    
+    if (0 == blockCount) {
+        return -1.0f;
+    } else if (nSamples - 2 == blockCount) {
+        return 2.0f;
+    } else {
+        return totalDepth / float(blockCount);
+    }
+}
+
+float PercentageCloserSoftShadows(
+    const vec3& coords, 
+    const vec3& normal, 
+    const vec3& lightDir
+)
+{
+    float bias = MAX(BIAS, BIAS * (1.0f - nomral.dot(lightDir)));
+    
+    // 1. avg blocker depth
+    float zBlocker = findAVGBlocker(coords, bias);
+    if (zBlocker > EPS) {
+        return 1.0f;
+    } else if (zBlocker > 1.0f + EPS) {
+        return 0.0f;
+    }
+    
+    // 2. penumbra size
+    float penumbraScale = (coord.z - zBlocker) / zBlocker;
+    
+    // 3. filtering
+    float sum = 0.0f;
+    for (int i = 0; i < nSamples; ++i) {
+        vec2 uv = vec2(coord.x, coord.y) + u_offsets[i] * penumbraScale;
+        sum += (coord.z > sample2D(texDepth, uv) ? 0.0f : 1.0f);
+    }
+    
+    return sum / nSamples;
+}
+```
+
+另外还有通过影子都是水平的这个假设 + 概率方差的方式来给 PCSS 计算加速的 Variance Shadow Maps（VSM），以及修正 VSM 漏光问题的 Moment Shadow Mapping（MSM）方法，由于使用场景特定且实现方式复杂等问题，这里不再详述，具体可以看 [实时渲染｜Shadow Map：PCF、PCSS、VSM、MSM - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/369710758)
+
+
+
+## 4. 级联式纹理映射 Cascaded Shadow Map（CSM）
 
 **阴影贴图**方法对于**大型场景**渲染显得力不从心，很容易出现**阴影抖动**和**锯齿边缘**现象
 **Cascaded Shadow Maps(CSM)** 方法根据**对象**到**观察者**的距离提供**不同分辨率**的**深度纹理**来解决上述问题
@@ -1402,7 +1519,7 @@ $$
 
 
 
-## 3. 点光源阴影 Point Shadows
+## 5. 点光源阴影 Point Shadows
 
 点光阴影，过去的名字是万向阴影贴图（omnidirectional shadow maps）技术
 
@@ -1483,13 +1600,13 @@ $$
 
 
 
-## 4. 透明物体的阴影
+## 6. 透明物体的阴影
 
 
 
 
 
-## 5. 屏幕空间的环境光遮挡 SSAO
+## 7. 屏幕空间的环境光遮挡 SSAO
 
 屏幕空间的环境光遮挡 （Screen Space Ambient Occlusion，SSAO）通过将褶皱、孔洞和非常靠近的墙面变暗的方法近似模拟出间接光照（常用来模拟大面积的光源对整个场景的光照 如，下图）
 
@@ -1581,7 +1698,7 @@ $$
      GLfloat scale = GLfloat(i) / 64.0;
      // 将更多的注意放在靠近真正片段的遮蔽上，也就是将核心样本靠近原点分布
      scale = lerp(0.1f, 1.0f, scale * scale);
-     ssaoKernel.push_back(sample);  
+     ssaoKernel.push_back(sample * scale);  
    }
       ```
    
@@ -2007,6 +2124,7 @@ void main() {
 
 # 引用
 
+- [The Book of Shaders](https://thebookofshaders.com/)
 - [learnopengl-Lighting Advanced](https://learnopengl-cn.github.io/05 Advanced Lighting/01 Advanced Lighting/)
 - [learnopengl-Light casters](https://learnopengl-cn.github.io/02%20Lighting/05%20Light%20casters/)
 - [learnopengl-Deferred Shading](https://learnopengl-cn.github.io/05 Advanced Lighting/08 Deferred Shading/)
@@ -2034,4 +2152,5 @@ void main() {
 - [概率密度函数(PDF)](https://www.jianshu.com/p/70b188d512aa)
 - [The Mathematics of Shading](https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/mathematics-of-shading)
 - [低差异序列（一）- 常见序列的定义及性质](https://zhuanlan.zhihu.com/p/20197323?columnSlug=graphics)
+- [实时阴影技术总结 - xiaOp的博客 (xiaoiver.github.io)](https://xiaoiver.github.io/coding/2018/09/27/实时阴影技术总结.html)
 
