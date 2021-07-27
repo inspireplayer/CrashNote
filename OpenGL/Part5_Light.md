@@ -39,7 +39,8 @@
   > d\Omega &= {dA_2 \over r^2} = sin\theta d \theta d \phi \\
   > \Omega &= \int d \Omega \\
 	> \Omega_{总面积} &= \int _0^{2\pi} d\phi \int_0^{\pi} sin\theta d\theta = 4\pi
-	> \end{align}$$
+	> \end{align}
+	> $$
 	> ![](./images/light_solidAngle.jpg) 
 - $L_e$ 辐亮度（radiance）
   表示**单位面积**和**单位立体角**上的辐通量，单位 $W/(m^2 \cdot sr)$
@@ -297,7 +298,7 @@ vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
 
 
 
-## 5. 基于物理的 PBR 光照模型
+## 4. 基于物理的 PBR 光照模型
 
 **基于物理**的渲染（非真实的物理渲染）是为了使用一种更符合物理学规律的方式来模拟光线，因此这种渲染方式与我们原来的 Phong 或者 Blinn-Phong 光照模型相比总体上看起来要更真实一些
 
@@ -305,12 +306,12 @@ vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
 PBR 满足以下条件
 
 1. 基于微平面 (Microfacet) 的表面模型
-2. 能量守恒
+2. 能量守恒 $L_{input}(\omega_{input}) = L_{output}(\omega_{output})$
 3. 应用基于物理的 BRDF
 
 
 
-### 5.1 PBR 材质系统概述
+### 4.1 PBR 材质系统概述
 
 在遵循能量守恒、菲涅尔反射、微表面反射的物理规律下，PBR 描述的物体颜色构成：
 
@@ -341,6 +342,8 @@ PBR 满足以下条件
   金属度可以用灰度值，也可以用二值图来表示物体表面具有金属特性的位置
 - <u>法线 Normal 贴图</u>
   计算反射光线强度时使用
+  根据分布方向的 一致 / 非一致性，可模拟出 各项异性 Anisotropic / 各项同性 Isotropic 材质
+  ![](./images/light_anisotropic.png)
 - <u>粗糙度 Roughness / 光滑度 Smoothness 贴图</u>
   微表平面模型的简化，以纹素为单位指定某个表面有多粗糙，粗糙度 = 1.0 – 光滑度
 - <u>环境光遮蔽 Ambient Occlusion 贴图</u>
@@ -350,7 +353,7 @@ PBR 满足以下条件
 
 
 
-### 5.2 反射率方程 和 BRDF
+### 4.2 反射率方程 和 BRDF
 
 反射率方程
 
@@ -364,11 +367,13 @@ $$
 L_o(p,\omega_o) = \int_{\Omega} f_r(p,\omega_i,\omega_o)L_i(p,w_i)n\cdot\omega_id\omega_i
 $$
 
-BRDF（Bidirectional Reflectance Distribution Function）双向反射分布函数：可以近似的求出每束光线对一个给定了材质属性的平面上最终反射出来的光线所作出的**贡献程度**，必须遵守能量守恒
+BRDF（Bidirectional Reflectance Distribution Function）双向反射分布函数：
+可以近似的求出每束光线对一个给定了材质属性的平面上最终反射出来的光线所作出的**贡献程度**，必须遵守能量守恒
+简单来说，BRDF 就是材质的数学表达方式，它代表的就是材质的效果
 
 
 
-### 5.3 Microfacet 微平面模型
+### 4.3 Microfacet 微平面模型
 
 现实当中大多数物体的表面都会有非常微小的缺陷：微小的凹槽，裂缝，几乎肉眼不可见的凸起，以及在正常情况下过于细小以至于难以使用 Normal map 去表现的细节。尽管这些微观的细节几乎是肉眼观察不到的，但是他们仍然影响着光的扩散和反射
 
@@ -377,7 +382,7 @@ BRDF（Bidirectional Reflectance Distribution Function）双向反射分布函�
 
 ![](./images/microfacets_light_rays.png)
 
-**粗糙度**（光泽度/平滑度）
+**光泽度**（Glossy 平滑度）
 
 - 用统计学的方法来概略的估算微平面的粗糙程度，表示半程向量（Blinn-Phong 中）的方向与微平面平均取向方向一致的概率
 
@@ -400,7 +405,7 @@ Energy Conservation 能量守恒 ：出射光线的能量永远不能超过入�
 
 
 
-### 5.4 Cook-Torrance BRDF 模型
+### 4.4 Cook-Torrance BRDF 模型
 
 $$
 f_r = k_d\cdot f_{lambert} + k_s \cdot f_{cook-torrance}
@@ -416,11 +421,11 @@ $$
   假设在所有方向观察亮度都是相同的，因此 $f_{lambert}$ 是常数
   $$
   \begin{align}
-  \int_{\Omega} f_{lambert} cos\theta d\omega' &= color_{light}\\
-  f_{lambert} \int_{\Omega} cos\theta d\omega' &=\\
-  f_{lambert} \int_0^{2\pi} d\phi \int_0^{\pi\over 2} cos\theta d\theta &= \\
-  f_{lambert} \pi &=\\
-  f_{lambert} &= {color_{light} \over \pi}
+  \int_{\Omega} f_{lambert} L_{Input} cos\theta d\omega' &= L_{Output}\\
+  L_{Input} f_{lambert} \int_{\Omega} cos\theta d\omega' &= L_{Output}\\
+  f_{lambert} \int_0^{2\pi} d\phi \int_0^{\pi\over 2} cos\theta d\theta &= 1\\
+  f_{lambert} \pi &= 1\\
+  f_{lambert} &= {color_{light} \over \pi}, \space color_{light} [0, 1]
   \end{align}
   $$
 
@@ -428,6 +433,7 @@ $$
 
 
 
+在镜面反射中：
 字母 D, F, G 分别代表着一种类型的函数，各个函数分别用来近似的计算出表面反射特性的一个特定部分
 
 1. **反射光的粗糙度**：Normal Distribution Function 正态分布函数
@@ -500,7 +506,7 @@ $$
 
 
 
-## 6. PBR 计算简化代码实现
+## 5. PBR 计算简化代码实现
 
 预计算的方法 **Precomputation-based methods**
 
@@ -677,7 +683,7 @@ void main() {
 
 
 
-## 7. 基于图像的照明 IBL
+## 6. 基于图像的照明 IBL
 
 IBL 通常使用（取自现实世界或从3D场景生成的）环境立方体贴图 (Cubemap) ，我们可以将立方体贴图的**每个像素视为光源**，在渲染方程中直接使用它。这种方式可以有效地捕捉环境的全局光照和氛围，使物体**更好地融入**其环境。
 
@@ -698,7 +704,7 @@ $$
 
 
 
-### 7.1 IBL 漫反射
+### 6.1 IBL 漫反射
 
 **辐照度图**
 
@@ -809,9 +815,9 @@ $$
 
 
 
-### 7.2 IBL 镜面反射
+### 6.2 IBL 镜面反射
 
-#### 7.2.1 前置知识：蒙特卡洛积分和重要性采样
+#### 6.2.1 前置知识：蒙特卡洛积分和重要性采样
 
 **概率密度函数 PDF  (probability density function)**：随着连续随机变量样本在整个样本集上发生的<u>概率</u>
 **累积分布函数 CDF (Cumulative Distribution Function)**：随着连续随机变量而变化的<u>概率积分值</u>，CDF 的导数是 PDF
@@ -828,7 +834,7 @@ $$
 
 
 
-#### 7.2.2 具体实现步骤
+#### 6.2.2 具体实现步骤
 
 在实时状态下，对每种可能的 **入射光线** 和 出射光线 的组合预计算该积分是不可行的。 **Epic Games 的分割求和近似法**将预计算分成两个单独的部分求解，再将两部分组合起来得到后文给出的预计算结果。
 $$

@@ -252,6 +252,8 @@ $$
 
 根据划分条件的不同，可以采用不同的划分结构
 
+![](./images/spatial_partition.png)
+
 ## 1. 划分条件
 
 ### 1.1 传统划分
@@ -264,11 +266,14 @@ $$
 
 ### 2.1 BVH 划分
 
+划分物体
+![](./images/spatial_partition3.png)
+
 ### 2.2 K-D 树划分
 
 ### 2.3 Uniform Grids 划分
 
-
+![](./images/spatial_partition2.png)
 
 
 

@@ -493,11 +493,11 @@ std::uint8_t checkViewCut(const glm::vec4& v)
 {
     auto ret = (std::uint8_t)0;
     
-    if 		(v.x < -v.w) ret |= 1;
+    if 		  (v.x < -v.w) ret |= 1;
     else if (v.x >  v.w) ret |= 2;
-    if 		(v.y < -v.w) ret |= 4;
+    if 		  (v.y < -v.w) ret |= 4;
     else if (v.y >  v.w) ret |= 8;
-    if 		(v.z < -v.w) ret |= 16;
+    if 		  (v.z < -v.w) ret |= 16;
     else if (v.z >  v.w) ret |= 32;
     
     return ret;

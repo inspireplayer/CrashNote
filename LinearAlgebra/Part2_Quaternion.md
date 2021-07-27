@@ -342,9 +342,11 @@ $$
 
 三次贝塞尔曲线：
 
-![](images/Bezier_3.gif)
+![](images/bezier.gif)
 
-![](images/Bezier3.png)
+![](images/bezier2.png)
+
+![](images/bezier3.png)
 
 插值方式可以用 lerp、Slerp 等方式，上图采用 de Casteljau 算法构造贝塞尔曲线
 上图采用 lerp 方式插值，插值方程为：
