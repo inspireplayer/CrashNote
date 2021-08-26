@@ -124,16 +124,25 @@ Unreal Build Tool 是 UE 自己的跨平台构建工具，它代替了传统的 
    在 UE4Editor 的 输出日志窗口、消息日志窗口 查看 log 信息
    在 UE4Editor 的 运行游戏画面窗口，查看 `UEngine::AddOnScreenDebugMessage` 的 log 信息
 
-7. **转化 / 烘焙（Cook）项目**，使用 UE4Editor 的虚幻自动化工具（UAT，Unreal Automation Tool）
+7. **性能分析**
+   使用 RenderDoc 抓取 GPU 绘制信息 [RenderDoc | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.27/zh-CN/TestingAndOptimization/PerformanceAndProfiling/RenderDoc/)
+
+8. **转化 / 烘焙（Cook）项目**，使用 UE4Editor 的虚幻自动化工具（UAT，Unreal Automation Tool）
    将引擎内部使用的特定格式存储内容资源（如用 PNG 存储纹理）转换成打包平台下更节省内存或者性能更好的格式
 
-8. **打包项目**，使用 UE4Editor 
+9. **打包项目**，使用 UE4Editor 
    将项目打包成平台原生的分发格式
 
-9. 打补丁，使用 UE4Editor
+10. 打补丁，使用 UE4Editor
    在最初的发布之后对其进行更新
    方法一：保留原始版本或之前版本中的文件，但添加一个指向新内容的指针
-   方法二：使用二进制补丁转换原始版本中的内容。
+   方法二：使用二进制补丁转换原始版本中的内容
+
+
+
+## 4. 插件编写流程
+
+继承自 IModuleInterface
 
 
 
