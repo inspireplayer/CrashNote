@@ -39,7 +39,7 @@ Gameplay 架构类按照 MVC 设计理念分类如下
 
 
 
-## 1. 无序 AsyncTask 系统
+## 1. 无序并行 AsyncTask 系统
 
 FAsyncTask 模板类使用示例
 
@@ -100,7 +100,7 @@ void Example()
 
 
 
-## 2. 有序 TaskGraph 系统
+## 2. 有序并行 TaskGraph 系统
 
 TaskGraph 使用示例
 
@@ -182,16 +182,60 @@ TaskGraph 执行的层级顺序
 
 
 
+## 3. UE4 的线程调用
+
+### 3.1 线程的执行顺序
+
+![](./images/RenderThreads.png)
+
+线程都附加在 TaskGraph 系统里，总体流程执行顺序：
+其中 GameThread 为主线程，在 `RenderThread::StartRenderThread` 函数中先后创建 RHI 和 Render 线程
+
+1. **GameThread（Main Thread）**
+   执行 AI、碰撞、寻路、物理等游戏逻辑后通过宏定义 `ENQUEUE_RENDER_COMMAND` 生成各种 CMD（平台无关）传入渲染线程中
+2. **RenderThread（渲染前端）**
+   执行 `TEnqueueUniqueRenderCommandType` 等类型的 CMD
+   将其转化成指定图形的调用 Graphical Command 传入 RHI 线程中（**可并行生成 CMD**）
+   CMD 对象**种类不固定**的在运行时可根据不同的逻辑自定义
+3. **RenderThread（渲染前端）**
+4. **RHIThread（渲染后端 Render Hardware Interface）**
+   执行 Graphical Command，将数据提交到 GPU 执行（**可并行处理 CMD**）
+   CMD 对象**种类固定**的，通过宏定义 `FRHICOMMAND_MACRO` 声明后在调用
 
 
-# 三、UE4 的渲染架构
 
-## 1. 游戏线程到渲染线程的映射
+### 3.2 线程间的同步
 
-游戏线程负责数据的逻辑更新，渲染线程负责绘制数据
-渲染线程使用的数据是游戏线程数据的 Copy（并不是完全 Copy，渲染线程有不一样的数据存储结构）
+GameThread 不可能领先于 RenderThread 超过一帧，否则 GameThread 会等待渲染线程处理完
+**同步时机**：
 
-主线程，游戏线程，ENamedThreads::Game Thread 都指的是同一个线程，它是 main 函数所在的主线程
+- 同步仅限于 GameThread 和 RenderThread 之间，RenderThread  和 RHIThread 不需要同步
+- 引擎循环的 `FEngineLoop::Tick` 末尾添加同步函数 `FFrameEndSync::Sync` 向渲染线程添加栅栏
+
+```c++
+// 渲染命令栅栏
+class RENDERCORE_API FRenderCommandFence {
+public:
+    // 向渲染命令队列增加一个栅栏. bSyncToRHIAndGPU 是否同步 RHI 和 GPU 交换 Buffer, 否则只等待渲染线程.
+    void BeginFence(bool bSyncToRHIAndGPU = false); 
+
+    // 等待栅栏被执行. bProcessGameThreadTasks没有作用.
+    void Wait(bool bProcessGameThreadTasks = false) const;
+
+    // 是否完成了栅栏.
+    bool IsFenceComplete() const;
+
+private:
+    mutable FGraphEventRef CompletionEvent; // 处理完成同步的事件
+    ENamedThreads::Type TriggerThreadIndex; // 处理完之后需要触发的线程类型.
+};
+```
+
+
+
+## 4. 线程间的数据交换
+
+不同线程，同种数据的对应关系
 
 | Game Thread            | Render Thread                              |
 | :--------------------- | :----------------------------------------- |
@@ -216,13 +260,34 @@ UWorld->ULevel->AActor->UActorComponent(UPrimitiveComponent)
 // Render Thread
 FSceneRenderer->FScene
     		  ->TArray<FViewInfo>
+
+// 数据传递
+// 1. UWorld -> FScene
+//    UWorld 里有成员变量指针 FSceneInterface* Scene
+//	  FScene 的构造函数内部总会让传入的 UWorld 对象的 Scene 指向 FScene 对象本身 
+
+// 2. UPrimitiveComponent -> FPrimitiveSceneProxy
+FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponent, FName InResourceName);
+void FScene::AddPrimitive(UPrimitiveComponent* p) {
+    p->CreateSceneProxy();
+}
+    
+    
+// 数据更新
+// 在 UWorld 的 Tick 里，遍历所有可见的 Actor (这里用 UActorComponent 的子类 ULightComponent 来举例)
+void ULightComponent::SendRenderTransform_Concurrent() {
+    GetWorld()->Scene->UpdateLightTransform(this);
+    Super::SendRenderTransform_Concurrent();
+}
 ```
 
 
 
 
 
-## 2. 模型绘制管线
+# 三、UE4 的渲染流程
+
+## 1. Mesh Draw Pipeline
 
 基本的图形 API 调用流程
 
@@ -243,8 +308,6 @@ FSceneRenderer->FScene
 5. 转译成图形 API 指令
 
 
-
-### 2.1 Mesh Draw Pipeline
 
 **UE4.21 及之前**
 
@@ -267,7 +330,7 @@ UE4.23 支持**移动端**的动态实例化渲染
 
 
 
-### 2.2 动态绘制路径
+### 1.1 动态绘制路径
 
 > **动 / 静态绘制并不冲突，一个 AActor 可能既有动态元素，又有静态元素**
 
@@ -289,7 +352,7 @@ UE并没有像 Unity 那样的动态合批功能，只有编辑器阶段手动�
 
 
 
-### 2.3 静态绘制路径
+### 1.2 静态绘制路径
 
 方法：在开发阶段合并多个 Actor 作为一个资源
 
@@ -314,7 +377,7 @@ UE并没有像 Unity 那样的动态合批功能，只有编辑器阶段手动�
 
 
 
-## 3. 渲染中各个 Pass 绘制流程
+## 2. 渲染中各个 Pass 绘制流程
 
 1. **PrePass / Depth Only Pass**（Early Z Pass）
    使用 FDepthDrawingPolicy 策略进行绘制，只绘制 depth 到 Depth-Buffer，这个有利于减少后面的 Base pass 中的 pixel 填充，节省 pixel-shader 的执行
@@ -395,6 +458,15 @@ UE 的内置 Shader 文件在 Engine\Shaders 目录下
 
 **Shader Parameter**：一组由 CPU 的 C++ 层传入 GPU Shader 并存储于 GPU 寄存器或显存的数据（FRHITexture、UAV、Uniform buffer）
 没有统一的父类，一般只有一层类
+Parameter 类型和到 GPU 的数据类型一一对应，一个 Parameter 类型对应一种 GPU 数据
+
+```c++
+// 在 UE4.22 及以上版本
+// LAYOUT_FIELD 是可以声明指定着色器参数的类型、名字、初始值、位域、写入函数等数据的宏
+LAYOUT_FIELD(FShaderParameter, ShaderParam); // 等价于: FShaderParameter ShaderParam;
+```
+
+
 
 **Shader Permutation**：UE Shader 的自定义数据类型，方便将用户的自定义类型转化为 UE 的自定义类型填充到 HLSL，编译出对应的着色器代码
 可以让用户定义的数据 和 Permutation 值是 1 对 多 的映射关系
@@ -483,15 +555,23 @@ class FDeferredLightPS : public FGlobalShader {
 
 ## 3. 缓存对象
 
+![](./images/ShaderContainer.png)
+
 **Shader Map**：存储编译后的 shader 代码
 
-- FGlobalShaderMap：保存并管理着所有编译好的 FGlobalShader 代码
+- FGlobalShaderMap：保存并管理着所有编译好的 FGlobalShader 代码，在 `FEngineLoop::PreInitPreStartupScreen` 初始化完成
 - FMaterialShaderMap：存储和管理着一组 FMaterialShader 实例的对象
-- FMeshMaterialShaderMap：
+- FMeshMaterialShaderMap：存储和管理一组 FMeshMaterialShader 实例的对象
+
+
 
 
 
 ## 4. 编译流程
+
+
+
+
 
 ## 5. 开发流程
 
@@ -513,3 +593,5 @@ class FDeferredLightPS : public FGlobalShader {
 - [Unreal Engine 4 Materials Tutorial](https://links.jianshu.com/go?to=https%3A%2F%2Fwww.raywenderlich.com%2F504-unreal-engine-4-materials-tutorial)
 - [UE4 Instance 使用 – Cheney Shen](https://cheneyshen.com/ue4-instance-使用/)
 - [UE4 Mesh Drawing pipeline official](https://docs.unrealengine.com/zh-CN/Programming/Rendering/MeshDrawingPipeline/index.html)
+- [游戏程序员的自我修养-房燕梁 ](https://neil3d.github.io/unreal/mcpp-fork-join.html)
+
