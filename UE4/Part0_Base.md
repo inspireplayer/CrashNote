@@ -8,15 +8,30 @@
 
 1. **软件配置**
    安装 Visual Studio 2017，Git
+   由于 win 对于文件路径限制在 255 字符以内，建议将 UE 的源码直接放在**磁盘根目录下**
+   
 2. **平台依赖软件包准备**
    执行 `Setup.bat` 脚本，通过 Git 下载当前平台依赖的额外资源，它们存放在 UE 源码的 `FeaturePacks` 文件夹
+   
+   ```sh
+   # Setup.bat 加速
+   # 在 set PROMPT_ARGUMENT=--prompt 这里使用多线程来加速
+   set PROMPT_ARGUMENT=--prompt --threads=20
+   ```
+   
 3. **构建项目**
    执行 `GenerateProjectFiles.bat` 脚本，它会调用 `Engine/Build/BatchFiles` 下的 bat 脚本文件
    里面的脚本会自动调用 Unreal Build Tool 项目，生成 `Unreal Build Tool.exe` 
    通过另外的一个脚本调用 `Unreal Build Tool.exe` 传入一些参数创建解决方案  `UE4.sln`
+   
 4. **生成 UE 各种游戏开发软件**
-   打开 `UE4.sln` 选择一种编译模式（如： Development Editor），选中解决方案 UE4，生成一下
+   打开 `UE4.sln` 选择一种编译模式（如： Development Editor），选中解决方案 UE4，**生成 Build一下**
    在文件夹 `Engine/Binaries/Win64` 找到对应编译平台生成的 UE4Editor.exe 等软件
+   
+5. **UnrealVersionSelector**
+   大部分用 UE Edtior 创建的不含有 C++ 文件的项目是不需要通过 Visual Studio 打开的，一般都需要用 UnrealVersionSelector 这个程序
+   这个程序诞生于对 UE 解决方案的编译（Win 使用时需要先双击一下注册程序到 Win 的注册表）
+   主要用来控制 UE Edtior 生成的 `.uproject` 文件（Win 选中后右键）在打开时使用哪个 UEEdtior 的版本（不同 UE 版本兼容性不太好）
 
 
 
@@ -125,7 +140,7 @@ Unreal Build Tool 是 UE 自己的跨平台构建工具，它代替了传统的 
    在 UE4Editor 的 运行游戏画面窗口，查看 `UEngine::AddOnScreenDebugMessage` 的 log 信息
 
 7. **性能分析**
-   使用 RenderDoc 抓取 GPU 绘制信息 [RenderDoc | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.27/zh-CN/TestingAndOptimization/PerformanceAndProfiling/RenderDoc/)
+   使用 RenderDoc 抓取 GPU 绘制信息 [RenderDoc | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.27/zh-CN/TestingAndOptimization/PerformanceAndProfiling/RenderDoc/)，[Render Doc 使用说明](https://zhuanlan.zhihu.com/p/80704313)
 
 8. **转化 / 烘焙（Cook）项目**，使用 UE4Editor 的虚幻自动化工具（UAT，Unreal Automation Tool）
    将引擎内部使用的特定格式存储内容资源（如用 PNG 存储纹理）转换成打包平台下更节省内存或者性能更好的格式
@@ -143,6 +158,29 @@ Unreal Build Tool 是 UE 自己的跨平台构建工具，它代替了传统的 
 ## 4. 插件编写流程
 
 继承自 IModuleInterface
+
+
+
+## 5. 扩展 - 游戏项目开发流程
+
+**开发流程**
+
+1. 策划设计（策划提需求）
+2. 主程分析和分配需求
+3. 开发联调，方案审核
+4. 策划配置游戏数据和程序联调
+5. 策划自测游戏
+6. 策划通知程序合并分支
+7. QA 测试
+8. 版本发布
+
+
+
+**项目管理工具**
+
+- 项目流程管理：JIRA
+- 项目知识库：Confluence（防止不同的人在同一个问题上重复踩坑）
+- 自动打包发布：Jenkins
 
 
 
@@ -297,9 +335,10 @@ iValue = 1.0f
 
 
 
-## 3. 预编译 Unreal Header Tool
+## 3. 预编译 UBT，UHT
 
-Unreal Header Tool（简称 UHT）一个分析源码标记并生成代码的工具 ，在 UE Editor 里的编译是调用 UHT
+Unreal Build Tool（UBT，C#）读取每个模块的 Target.cs、Build.cs，处理依赖关系，编译每个模块
+Unreal Header Tool（UHT，C++）一个分析源码标记并生成代码的工具 ，在 UE Editor 里的编译是调用 UHT
 为了更好的服务于 C++ 的反射功能，具备
 
 1. 只在类代码里添加一些宏标记，不破坏原来的类声明结构
@@ -317,9 +356,11 @@ class HELLO_API UMyClass : public UObject
 {
 	GENERATED_BODY()
 public:
+    // 蓝图属性
 	UPROPERTY(BlueprintReadWrite, Category = "Test")
 	float Score;
 
+    // 蓝图方法
 	UFUNCTION(BlueprintCallable, Category = "Test")
 	void CallableFuncTest();
 };
@@ -327,13 +368,13 @@ public:
 
 
 
-
 ## 4. UE4 总体编译流程
 
-1. Unreal Header Tool 读取 `Engine/Config/*.ini` 下的配置类的值准备给配置类做初始化
-2. Unreal Header Tool 根据编译脚本执行 UE 的预编译
-3. Unreal Build Tool 根据编译脚本分别编译各个已经预编译好的模块
-4. Unreal Build Tool 根据编译脚本链接各个模块，最终生成可执行文件
+1. Unreal Build Tool 根据编译脚本为了编译各个已经预编译好的模块
+   调用 Unreal Header Tool 执行 UE 的预编译，生成反射所需要的文件 *.generated.h 
+2. 调用平台特定的编译工具(VisualStudio, LLVM) 来编译各个模块
+3. Unreal Build Tool 根据编译脚本链接各个模块，最终生成可执行文件
+4. 引擎代码读取 `Engine/Config/*.ini` 下的配置类的值准备给配置类做初始化
 
 
 
@@ -698,13 +739,9 @@ public:
 
 # 四、资源加载流程
 
-这里指运行时，资源家在的流程
+这里指运行时，资源加载的流程
 
 
-
-
-
-# 五、扩展 - 游戏开发流程
 
 
 
