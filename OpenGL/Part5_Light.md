@@ -1519,7 +1519,13 @@ float PercentageCloserSoftShadows(
 
 
 
-## 5. 点光源阴影 Point Shadows
+## 5. 平面投影阴影 Planar Projected Shadows
+
+TODO: https://zhuanlan.zhihu.com/p/31504088
+
+
+
+## 6. 点光源阴影 Point Shadows
 
 点光阴影，过去的名字是万向阴影贴图（omnidirectional shadow maps）技术
 
@@ -1600,13 +1606,13 @@ float PercentageCloserSoftShadows(
 
 
 
-## 6. 透明物体的阴影
+## 7. 透明物体的阴影
 
 
 
 
 
-## 7. 屏幕空间的环境光遮挡 SSAO
+## 8. 屏幕空间的环境光遮挡 SSAO
 
 屏幕空间的环境光遮挡 （Screen Space Ambient Occlusion，SSAO）通过将褶皱、孔洞和非常靠近的墙面变暗的方法近似模拟出间接光照（常用来模拟大面积的光源对整个场景的光照 如，下图）
 
@@ -2134,6 +2140,8 @@ void main() {
 - [learnopengl-PBR Theory](https://learnopengl.com/PBR/Theory)
 - [Everything has Fresnel](http://filmicworlds.com/blog/everything-has-fresnel/)
 - [Unity_Shaders_Book](https://github.com/candycat1992/Unity_Shaders_Book)
+- [阴影渲染](https://zhuanlan.zhihu.com/p/102135703)
+- [使用顶点投射的方法制作实时阴影](https://zhuanlan.zhihu.com/p/31504088)
 - [弧长和曲面面积](https://blog.csdn.net/sunbobosun56801/article/details/78657455)
 - [深入浅出基于物理的渲染一](https://zhuanlan.zhihu.com/p/33630079)
 - [实时渲染中常用的几种 Rendering Path](https://www.cnblogs.com/polobymulberry/p/5126892.html)

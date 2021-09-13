@@ -316,6 +316,12 @@ void ULightComponent::SendRenderTransform_Concurrent() {
 
 # 三、UE4 的渲染流程
 
+渲染的宏观流程：渲染数据（场景/图像） > 渲染器 > 上下文
+
+一个3D渲染引擎的核心工作就是组织好这一宏观上的工作流，使其最大化利用目标平台的硬件资源（CPU,GPU,内存，硬盘或闪存等）和特性，使其使用最便利、性能最优，效果最佳
+
+
+
 ## 1. Mesh Draw Pipeline
 
 基本的图形 API 调用流程

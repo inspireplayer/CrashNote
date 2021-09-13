@@ -122,7 +122,7 @@ SVG 使用 XML 语法编写，并且可以在文本工具里修改（可以使�
 | ---------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | **.abc**<br />Alembic                    | 动画、粒子、模型烘焙、流体                                   | 通用格式，有效地储存, 共享动画与特效场景<br />[官网](http://www.alembic.io/)<br />[为什么 CG 行业需要 Alembic（.abc） 通用格式](http://www.bgteach.com/article/131) |
 | **.glTF**<br />GL Transmission Format    | 动画、场景、相机、网格、材质、纹理、着色器、着色程序         | json 格式描述<br />较少的冗余信息<br />[官网](https://www.khronos.org/gltf/)<br />[Github](https://github.com/KhronosGroup/glTF/blob/master/README.md) |
-| **.fbx**<br />FilmBoX                    | 骨骼动画、材质、网格                                         | FilmBoX 这套软件所使用的格式，后改称 Motionbuilder<br />Autodesk 家族格式，在 3D Max、Maya、Softimage 等软件间进行模型、材质、动作和摄影机信息的互导，这样就可以发挥 3D Max 和 Maya 等软件的优势 |
+| **.fbx**<br />FilmBoX                    | 骨骼动画、材质、网格                                         | FilmBoX 这套软件所使用的格式，后改称 Motionbuilder<br />Autodesk 家族格式，在 3D Max、Maya、Softimage 等软件间进行**模型**、材质、**动作**和摄影机信息的互导，这样就可以发挥 3D Max 和 Maya 等软件的优势 |
 | **.bvh**<br />BioVision                  | 骨骼动画                                                     | 对人体运动进行捕获后产生文件格式的文件扩展名，捕捉后的文件可以重复利用，应用在不同的角色骨骼驱动上制作动画 |
 | **.obj**                                 | 主要支持多边形(Polygons)模型<br />不包含动画、材质特性、贴图路径、动力学、粒子等信息 | 几乎所有知名的 3D 软件都支持 OBJ 文件的读写                  |
 | **.ply**<br />Polygon File Format        | 静态多边形模型，OBJ 格式的升级版<br />颜色、透明度、表面法向量、材质座标与资料可信度 | 改进了 Obj 格式所缺少的对任意属性及群组的扩充性<br />因此PLY格式发明了 "property" 及 "element" 这两个关键词，来概括 "顶点、面、相关资讯、群组" 的概念 |
