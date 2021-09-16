@@ -760,4 +760,5 @@ public:
 - [编译配置参考 | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.26/zh-CN/ProductionPipelines/DevelopmentSetup/BuildConfigurations/)
 - [深入研究虚拟机之垃圾收集（GC）算法实现 - 牧涛 - 博客园 (cnblogs.com)](https://www.cnblogs.com/superjt/p/5946059.html)
 - [UE4 垃圾回收 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/341137213)
+- [UE4 性能分析和优化](https://zhuanlan.zhihu.com/p/150110172)
 

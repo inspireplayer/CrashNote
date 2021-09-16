@@ -167,6 +167,11 @@ FBX 模型的材质资源不可用，因为模型编辑器用的渲染引擎和 
 
 
 
+**移动和动画的关系**：移动和动画的逻辑是分开的
+
+- 移动：只处理玩家的位置与旋转
+- 动画：只处理玩家动作对应的动画表现（虽然有些动画表现会有一定的移动）
+
 **Root Motion**
 
 - 功能：让角色的位置能跟随动画旋转和位移（默认动画会随角色而一起旋转和位移）
@@ -198,6 +203,7 @@ USkinnedMeshComponent：负责根据骨骼的 Pose 计算 Mesh 的顶点位置
 UAnimInstance：对应 动画蓝图的一个（事件/动画）图，所有逻辑的控制中心，一般在**其他线程**上运行，不能在 Game play 线程对其进行读写
 **UAnimInstanceProxy**：是 UAnimInstance 的代理，一般在 **Game play 线程**，与 UAnimInstance 通过复制等策略来交换数据
 FAnimNode_Base：对应 动画蓝图的一个节点，只能通过 UAnimInstanceProxy 来读写 UAnimInstance 的数据
+FSkeletalMeshRenderData：导入的骨骼模型资源渲染数据
 
 
 
@@ -238,16 +244,6 @@ FAnimNode_Base：对应 动画蓝图的一个节点，只能通过 UAnimInstance
 
 
 
-## 3. 动画渲染
-
-**FSkeletalMeshRenderData**：导入的骨骼模型资源渲染数据
-
-**坐标系统的嵌套**：世界坐标 > 组件 Component 坐标 > ParentBoneSpace > BoneSpace
-
-
-
-
-
 
 
 
@@ -263,5 +259,6 @@ FAnimNode_Base：对应 动画蓝图的一个节点，只能通过 UAnimInstance
 - [UE4 动画系统 源码及原理剖析](https://blog.csdn.net/qq_23030843/article/details/109103433)
 - [使用 UE4 动画蒙太奇实现分层动画](https://blog.csdn.net/u013412391/article/details/106926303)
 - [虚幻4 渲染编程（动画篇）【第一卷：先从引擎编辑器入手】](https://zhuanlan.zhihu.com/p/38463925)
+- [《Exploring in UE4》RootMotion详解](https://zhuanlan.zhihu.com/p/74554876#:~:text=%E3%80%8AExploring%20in%20UE4%E3%80%8BRootMotion%E8%AF%A6%E8%A7%A3)
 - [虚幻4 渲染编程（图元汇编篇）【第一卷：CableComponent 的原理及 Unity 实现】](https://zhuanlan.zhihu.com/p/36990803)
 
