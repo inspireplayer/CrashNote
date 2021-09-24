@@ -68,7 +68,9 @@
 
 ### 1.2 矩阵变换组合
 
-OpenGL，Unity 默认为**列向量优先存储：矩阵由列向量构成**
+![](./images/Matrix_memory.png)
+
+OpenGL，Unity，Unreal 默认为**列向量优先存储：矩阵由列向量构成**
 $$
 \begin{align}
 v_{世界} &= M_{模型 \to世界} \cdot v_{模型} \\

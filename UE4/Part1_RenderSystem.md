@@ -1,6 +1,6 @@
 [TOC]
 
-# 一、UE4 的 GamePlay 架构
+# 一、UE4 GamePlay 架构
 
 UObject 的整体继承关系如下：
 
@@ -11,6 +11,11 @@ UObject 的整体继承关系如下：
 ## 1. <span id="inherit">继承与组合关系</span>
 
 UObject 在 Gameplay 架构里的继承关系如下：
+
+- AActor：只有需要挂载组件时才会继承 AActor（开始有了 Tick 更新函数）
+- APawn：如同肉体，只能被操作，没有自己的逻辑
+- ACharacter：继承自 APawn，具有胶囊体的可移动的肉体，只有碰撞和移动逻辑
+- AController：如同灵魂，是行为的抽象，比如一群同种族的怪物的行为是一样的，那么他们都可以被同一个行为对象 Controller 控制
 
 > 查看原图更清晰
 
@@ -27,17 +32,25 @@ Gameplay 架构组合关系大体如下
 ## 2. MVC 的数据处理方式
 
 Gameplay 架构类按照 MVC 设计理念分类如下
+
+- Model：APawn
+
+- View：APawn 挂载的动态网格组件
+
+- Controller：AController
+
+
 ![](./images/MVC.jpg)
 
 
 
 
 
-# 二、UE4 的多线程
+# 二、UE4 多线程
+
+> UE4 还提供了对进程的封装，在 Core 模块的 GenericPlatformProcess 中，静态方法 `FProcHandle FGenericPlatformProcess::CreateProc(...)`  会根据提供的 URL 启动一个进程，最后返回一个进程句柄
 
 虽然 UE4 遵循 C++11 标准，但并没有使用 std::thread，而是自己实现了一套多线程机制，用法上很像 Java
-
-
 
 ## 1. 无序并行 AsyncTask 系统
 
@@ -111,8 +124,8 @@ TaskGraph 使用示例
   而这个任务完成后，又可能触发其他事件，其他事件再进一步触发其他任务
 
 ```c++
-// 1. 定义自己的 Task 类
-// 如 FTickFunctionTask、FReturnGraphTask，不需要继承，要实现如下几个静态函数
+// 1. 定义自己的 Task 类，如 FTickFunctionTask、FReturnGraphTask
+// 由于 Task Graph 由于采用的是模板匹配，因此不需要继承，但要实现如下几个静态函数
 class FMyTestTask
 {
 public:
@@ -182,7 +195,7 @@ TaskGraph 执行的层级顺序
 
 
 
-## 3. UE4 的线程调用
+## 3. UE4 线程调用
 
 ### 3.1 线程的执行顺序
 
@@ -197,10 +210,12 @@ TaskGraph 执行的层级顺序
    执行 `TEnqueueUniqueRenderCommandType` 等类型的 CMD
    将其转化成指定图形的调用 Graphical Command 传入 RHI 线程中（**可并行生成 CMD**）
    CMD 对象**种类不固定**的在运行时可根据不同的逻辑自定义
-3. **RenderThread（渲染前端）**
 4. **RHIThread（渲染后端 Render Hardware Interface）**
+   启用该线程需要将 `r.RHIThread.Enable` 设为 1，否则将会在渲染线程执行
+   使用 **FRHIResource** 资源，该资源采用引用计数的方式管理内存
    执行 Graphical Command，将数据提交到 GPU 执行（**可并行处理 CMD**）
-   CMD 对象**种类固定**的，通过宏定义 `FRHICOMMAND_MACRO` 声明后在调用
+   CMD 对象**种类固定**的，通过宏定义 `FRHICOMMAND_MACRO` 声明后在调用（最初的RHI是基于D3D11 API设计而成）
+   ![](./images/RHIThread.png)
 
 
 
@@ -209,7 +224,8 @@ TaskGraph 执行的层级顺序
 GameThread 不可能领先于 RenderThread 超过一帧，否则 GameThread 会等待渲染线程处理完
 **同步时机**：
 
-- 同步仅限于 GameThread 和 RenderThread 之间，RenderThread  和 RHIThread 不需要同步
+- GameThread 和 RenderThread 之间，通过渲染命令栅栏同步
+  RenderThread  和 RHIThread 之间，通过 SwapBuffer 同步
 - 引擎循环的 `FEngineLoop::Tick` 末尾添加同步函数 `FFrameEndSync::Sync` 向渲染线程添加栅栏
 
 ```c++
@@ -233,25 +249,9 @@ private:
 
 
 
-## 4. 线程间的数据交换
+## 4. UE4 线程间通讯
 
-不同线程，同种数据的对应关系
-
-| Game Thread            | Render Thread                              |
-| :--------------------- | :----------------------------------------- |
-| UWorld                 | FScene                                     |
-| UPrimitiveComponent    | FPrimitiveSceneProxy / FPrimitiveSceneInfo |
-| -                      | FSceneView / FViewInfo                     |
-| ULocalPlayer           | FSceneViewState                            |
-| ULightComponent        | FLightSceneProxy / FLightSceneInfo         |
-| FVertexStreamComponent | FVertexStream / FVertexElement             |
-
-尝试跨线程操作数据，将会引发不可预料的结果
-有些对象作为线程间数据的传递者（FPrimitiveSceneProxy、FLightSceneProxy）会在**游戏线程**创建，在**渲染线程**执行，最后在**渲染线程**销毁
-
-
-
-数据结构对比，详见 [一、1.继承与组合关系](#inherit)
+游戏线程和渲染线程内部使用的数据结构对比，详见 [一、1.继承与组合关系](#inherit)
 
 ```c++
 // Game Thread
@@ -260,7 +260,29 @@ UWorld->ULevel->AActor->UActorComponent(UPrimitiveComponent)
 // Render Thread
 FSceneRenderer->FScene
     		  ->TArray<FViewInfo>
+```
 
+不同线程，同种数据的对应关系
+
+| Game Thread                                  | Render Thread                                          |
+| :------------------------------------------- | :----------------------------------------------------- |
+| UWorld                                       | FScene                                                 |
+| UPrimitiveComponent                          | FPrimitiveSceneProxy / FPrimitiveSceneInfo             |
+| -                                            | FSceneView / FViewInfo                                 |
+| ULocalPlayer                                 | FSceneViewState                                        |
+| ULightComponent                              | FLightSceneProxy / FLightSceneInfo                     |
+| FVertexStreamComponent                       | FVertexStream / FVertexElement                         |
+| UMaterial（父类 UMaterialInterface）         | FDefaultMaterialInstance（父类 FMaterialRenderProxy）  |
+| UMaterialInstance（父类 UMaterialInterface） | FMaterialInstanceResource（父类 FMaterialRenderProxy） |
+
+尝试跨线程操作数据，将会引发不可预料的结果
+有些对象作为线程间数据的传递者（FPrimitiveSceneProxy、FLightSceneProxy）会在**游戏线程**创建，在**渲染线程**执行，最后在**渲染线程**销毁
+
+
+
+### 4.1 数据的传递与更新
+
+```c++
 // 数据传递
 // 1. UWorld -> FScene
 //    UWorld 里有成员变量指针 FSceneInterface* Scene
@@ -273,7 +295,7 @@ void FScene::AddPrimitive(UPrimitiveComponent* p) {
 }
     
     
-// 数据更新
+// 数据更新：为了高效，游戏更新（Tick）和渲染更新（遍历场景）是异步的，并不同时进行
 // 在 UWorld 的 Tick 里，遍历所有可见的 Actor (这里用 UActorComponent 的子类 ULightComponent 来举例)
 void ULightComponent::SendRenderTransform_Concurrent() {
     GetWorld()->Scene->UpdateLightTransform(this);
@@ -283,11 +305,39 @@ void ULightComponent::SendRenderTransform_Concurrent() {
 
 
 
+### 4.2 共享数据的生命周期管理
+
+**UObject**
+
+- 创建和销毁：都在**游戏线程**，使用渲染同步命令 `FRenderCommandFence` 防止 GC 在渲染线程使用 UObject 时，游戏线程提前将其删除
+- 管理生命周期的方式：**Garbage Collection**（GC）
+
+
+
+**FRenderResource**
+
+- 创建和销毁：本身的创建和销毁在游戏线程，但其 **InitResources / ReleaseResources** 方法都在**渲染线程**
+- 管理生命周期的方式：引用计数
+- **静态资源**（游戏初始化完成后便不在更新）
+  通过每帧不断查询标志位信息 `USkeletalMesh::IsReadyForFinishDestroy ` 来判断渲染线程
+  是否已经不在占用游戏线程已释放的对象，来销毁游戏线程对象
+- **动态资源**（运行时需要不断更新）
+  通过将游戏线程数据拷贝到渲染线程数据来传递数据，当渲染资源释放时
+  将已经释放渲染资源的游戏线程对象加入到延迟渲染队列中去，等待下一帧释放游戏线程对象
+
+
+
 
 
 # 三、UE4 的渲染流程
 
-## 1. Mesh Draw Pipeline
+渲染的宏观流程：渲染数据（场景/图像） > 渲染器 > 上下文
+
+一个3D渲染引擎的核心工作就是组织好这一宏观上的工作流，使其最大化利用目标平台的硬件资源（CPU,GPU,内存，硬盘或闪存等）和特性，使其使用最便利、性能最优，效果最佳
+
+
+
+## 1. Mesh 绘制流程总览
 
 基本的图形 API 调用流程
 
@@ -309,7 +359,9 @@ void ULightComponent::SendRenderTransform_Concurrent() {
 
 
 
-**UE4.21 及之前**
+### 1.1 UE4.21 及之前
+
+**一个** CPU 上的 Mesh Batch 命令对应 GPU 的**一次** drawcall
 
 1. 遍历场景的所有经过了可见性测试的 FPrimitiveSceneProxy 对象
 2. 通过 FPrimitiveSceneProxy 收集不同的 FMeshBatch
@@ -318,19 +370,30 @@ void ULightComponent::SendRenderTransform_Concurrent() {
 
 
 
-**UE4.22 及之后**
+### 1.2 UE4.22 ~ 4.24
+
 UE4.23 支持**移动端**的动态实例化渲染
+**多个** CPU 上的 Mesh Batch 命令合并成一个，对应 GPU 的**一次** drawcall
 
 1. 遍历场景的所有经过了可见性测试的 FPrimitiveSceneProxy 对象
 2. 通过 FPrimitiveSceneProxy 收集不同的 FMeshBatch
-3. **通过不同的渲染 Pass 在 FMeshPassProcessor 中遍历 FMeshBatch 生成 FMeshDrawCommand**
-   在这里一个在这一步缓存静态网格的绘制命令
+   在这一步缓存**静态网格**的绘制命令（缓存并重用 FMeshBatch，动态路径不会缓存，缓存不会改变资源的生命周期）
+3. **通过不同的渲染 Pass 在 FMeshPassProcessor 中遍历 FMeshBatch 生成 FMeshDrawCommand**（**R**ender **D**ependency **G**raph）
+   在这一步缓存**静态网格**的绘制命令（缓存并重用 FMeshDrawCommand，动态路径不会缓存，缓存不会改变资源的生命周期，不能依赖依 FSceneView）
 4. 通过不同的渲染 Pass 中生成的 FMeshDrawCommand 转换成对应的 RHICommandList 命令
 5. 根据 RHICommandList 的命令调用 图形 API 指令
 
 
 
-### 1.1 动态绘制路径
+### 1.3 UE4.24 及之后
+
+
+
+
+
+## 2. GameThread 绘制路径
+
+### 2.1 动态绘制路径
 
 > **动 / 静态绘制并不冲突，一个 AActor 可能既有动态元素，又有静态元素**
 
@@ -352,7 +415,7 @@ UE并没有像 Unity 那样的动态合批功能，只有编辑器阶段手动�
 
 
 
-### 1.2 静态绘制路径
+### 2.2 静态绘制路径
 
 方法：在开发阶段合并多个 Actor 作为一个资源
 
@@ -375,9 +438,9 @@ UE并没有像 Unity 那样的动态合批功能，只有编辑器阶段手动�
 
 
 
+## 3. RHIThread 绘制流程
 
-
-## 2. 渲染中各个 Pass 绘制流程
+流程总览
 
 1. **PrePass / Depth Only Pass**（Early Z Pass）
    使用 FDepthDrawingPolicy 策略进行绘制，只绘制 depth 到 Depth-Buffer，这个有利于减少后面的 Base pass 中的 pixel 填充，节省 pixel-shader 的执行
@@ -418,45 +481,169 @@ UE并没有像 Unity 那样的动态合批功能，只有编辑器阶段手动�
 
 
 
-# 五、UE4 Shader 系统
+# 五、UE4 材质系统
 
-## 1. 文件库存储
+材质是多个 Shader 和它们所需要的资源和参数的组合，材质系统建立于 Shader 系统之上
 
-UE 的内置 Shader 文件在 Engine\Shaders 目录下
+## 1. 缓存对象
 
-- `.ush` Shader 的声明文件（头文件，可被 include，例 `#include "Common.ush"`）
-- `.usf` Shader 的定义文件（不可被 include）
-- `.tps` Shader 的功能介绍，证书说明文件，本质是 xml 文件
+通过 Shader 关联容器 Shader Map（统称）可知一组最复杂的关联数据由 FMaterial、FVertexFactoryType、EMeshPass 类型 三个方面构成
+
+![](./images/ShaderContainer.png)
+
+Shader 的容器 **Shader Map**（存储运行时编译后的 shader 代码，最后由 FMaterialResource 持有）
+
+- FGlobalShaderMap：保存并管理着所有编译好的 FGlobalShader 代码，在 `FEngineLoop::PreInitPreStartupScreen` 初始化完成
+- FMaterialShaderMap：存储和管理着一组 FMaterialShader 实例的对象（Mesh 无关 Shader，种类少）
+- FMeshMaterialShaderMap：存储和管理一组 FMeshMaterialShader 实例的对象（Mesh 相关 Shader，种类多）
 
 
 
-常用 USH 文件介绍
+**离线缓存（开发阶段）**
 
-- **Platform.ush**
-  定义了跟图形API（DirectX、OpenGL、Vulkan、Metal）和 FEATURE_LEVEL 相关的宏、变量及工具类接口
-- **Common.ush**
-  包含了图形 API 或 Feature Level 相关的宏、类型、局部变量、静态变量、基础工具接口等
-- **Definitions.ush**
-  预先定义了一些常见的宏，防止其它模块引用时出现语法错误
-- **ShadingCommon.ush**
-  定义了材质所有着色模型，并提供了少量相关的工具类接口
-  其中 UE 默认的 ShadingModel ID 只占用 4bit，最多 16 个，而目前 UE 内置着色模型已占用了 13 个，意味着自定义的 ShadingModel 最多只能 3 个了
-- **BasePassCommon.ush**
-  定义了 BasePass 的一些变量、宏定义、插值结构体和工具类接口
-- **VertexFactoryCommon.ush**
-  定义了顶点变换相关的辅助接口
-- **LocalVertexFactoryCommon.ush**
-  顶点工厂的数据插值结构体及部分辅助接口
-- **BRDF.ush**
-  双向反射分布函数模块，提供了很多基础光照算法及相关辅助接口
-- **ShadingModels.ush**
-  着色模型以及光照计算相关的类型和辅助接口
+- 打包预编译获得的数据保存在工程目录的 Saved 目录下，后缀是 `.upipelinecache`
+
+
+
+**运行时缓存**
+
+- 早期的 UE 用 FShaderCache 来缓存
+- UE4.26 用 FShaderPipelineCache 来代替 FShaderCache 缓存
+
+
+
+**Uniform Buffer**：最底层的是 RHI 层的 FRHIUniformBuffer，封装了各种图形 API 的统一缓冲区（也叫 Constant Buffer）
+继承自 FRenderResource 在 UE4.27 的版本相比 4.21 版本减少了许多对象
+
+**Vertex Factory**：表示 Mesh 类型，它的一种子类只表示一种网格类型
+继承自 FRenderResource，包含
+
+- **顶点缓冲**（FVertexBuffer）
+  将 FVertexBuffer 转化为包含 FVertexBuffer 的 FVertexStreamComponent
+- **顶点缓冲布局**（FVertexElement）
+  将 FVertexStreamComponent 转化为 FVertexElement
+  再将 FVertexElement 的 TArray 转化为 FRHIVertexDeclaration
+  通过顶点布局，我们可以自定义和扩展顶点缓冲的输入，从而实现定制化 Shader 代码
+- **顶点着色器**（FShader）
+  Shader 的 HLSL 代码含**顶点缓冲每个单元内部布局**（FVertexFactoryInput）
+  顶点着色器的输入输出需要顶点工厂来表明数据的布局
+- 顶点工厂的参数和 RHI 资源(FRHIUniformBuffer)
+  这些数据将从 C++ 层传入到顶点着色器中进行处理
+- 几何预处理
+  顶点缓冲、网格资源、材质参数等等都可以在真正渲染前预处理它们
+
+
 
 
 
 ## 2. 运行对象
 
-**Shader Parameter**：一组由 CPU 的 C++ 层传入 GPU Shader 并存储于 GPU 寄存器或显存的数据（FRHITexture、UAV、Uniform buffer）
+### 2.1 Mesh
+
+**Mesh 模型的网格，分为以下类型**
+
+- 已绑定骨骼的 Skeletal Mesh，内部存有骨骼信息，动画受骨骼动画的驱动
+- 未绑定骨骼的 Static Mesh，内部没有骨骼信息，只能做旋转、位移、缩放这样的简单变换
+  通过 Transform 贴图也可以让其有动画效果（这样的 Static Mesh 由 Skeletal Mesh 生成）
+
+
+
+**渲染 Mesh 动画细节**
+
+![](./images/RenderCoord.png)
+
+UE 的矩阵：列主序（HLSL 和 材质图里矩阵）
+UE 的坐标系：左手坐标系，初始位置如上图（Y 轴垂直指向屏幕外，X-Z 轴构成屏幕的二维空间坐标）
+UE 的旋转顺序：Roll-Pitch-Yaw 组合（X-Y-Z 轴）
+
+UE4 Edtior 中的 Transform 设置面板可以设置当前的变换是 **Local (相对于父节点坐标)** 还是 **World (相对于世界节点坐标)**
+**父节点的变换会影响子节点**：父节点在变换(运动)时，其子节点虽然设置的变换是在父节点下，但子节点仍会跟随父节点变换(运动)，而且子节点的变换结果会以世界坐标的形式呈现在设置面板
+**子节点的变换不会影响父节点**
+
+**坐标系的嵌套**：世界坐标 > 组件 Component 坐标 > ParentBoneSpace > BoneSpace（**父子节点有相对关系，但坐标系互相平行**）
+
+
+
+
+
+### 2.2 Material
+
+**UMaterial**：对应着在材质编辑器编辑的 uasset 资源文件，继承自 UMaterialInterface
+UMaterialInterface 继承自 UObject 其内部包含物理材质 UPhysicalMaterial，内部属性和编辑器里的属性面板一致
+一般作为母材质，来描述一类材质（<u>其子材质对象为 UMaterialInstance，只是参数上有区别</u>）
+
+**UMaterialInstance**：对象的构造依赖 UMaterial 对象，只能覆盖 UMaterial 的部分参数，继承自 UMaterialInterface
+UMaterialInstance 的母材质可以有多层，其最顶层一定是 UMaterial，中间都是 UMaterialInstance
+
+- 子类 **UMaterialInstanceConstant**：固定材质实例，用于编辑器预先创建和编辑好的材质实例资源
+  运行时修改材质不会重新编译，应用：地貌的材质
+
+- 子类 **UMaterialInstanceDynamic**：动态材质实例，可在运行时动态创建和修改材质属性
+  运行时修改材质不会重新编译，应用：特效变化
+
+  
+
+**FMaterialResource**：继承自 FMaterial，用于将材质数据传递到渲染器（此时的资源对象已经**足够具体**有对应 Pass 的具体参数）
+不仅仅包含 UMaterial 的材质信息，还包含当前渲染 Pass 需要的 Vertex Factory、ShaderMap、ShaderPipelineline、FShader 及各种着色器参数等
+
+![](./images/Material.jpg)
+
+**材质编辑器的材质节点**
+
+
+
+
+
+### 2.3 Shader 数据
+
+**FShader**：已经编译好的着色器代码和它所需资源的绑定
+存储着 Shader 关联的绑定参数、顶点工厂、编译后的各类资源等数据，并提供了编译器修改和检测接口
+
+**FShader 的分类**（子类）
+
+- **FGlobalShader**（不需要材质）
+  全局着色器，只有唯一的实例，常用于屏幕绘制、后处理、光照、工具类、可视化、地形、虚拟纹理等
+
+- **FMaterialShader**（需要材质）
+  材质着色器，由 FMaterialShaderType 指定的材质引用的着色器，是材质蓝图在实例化后的一个 shader 子集
+
+
+
+自定义的 Shader 类型
+
+  ```c++
+  // Shader 声明和实现宏
+  // 声明指定类型（FShader子类）的 Shader, 可以是 Global, Material, MeshMaterial, ...
+  #define DECLARE_SHADER_TYPE(ShaderClass,ShaderMetaTypeShortcut,...)
+  // 实现指定类型的 Shader, 可以是 Global, Material, MeshMaterial, ...
+  #define IMPLEMENT_SHADER_TYPE(TemplatePrefix,ShaderClass,SourceFilename,FunctionName,Frequency)
+  
+  // 声明 FGlobalShader 及其子类.
+  #define DECLARE_GLOBAL_SHADER(ShaderClass)
+  // 实现 FGlobalShader 及其子类.
+  #define IMPLEMENT_GLOBAL_SHADER(ShaderClass,SourceFilename,FunctionName,Frequency)
+  
+  // 实现Material着色器.
+  #define IMPLEMENT_MATERIAL_SHADER_TYPE(TemplatePrefix,ShaderClass,SourceFilename,FunctionName,Frequency)
+  
+  // 其它不常见的宏
+  [......]
+  
+  // 例
+  class FDeferredLightPS : public FGlobalShader
+  {
+      // 1. 在 FDeferredLightPS 类内声明全局着色器
+      DECLARE_SHADER_TYPE(FDeferredLightPS, Global)
+      [......]
+  };
+  
+  // 2. 实现 FDeferredLightPS 着色器, 让它和代码文件, 主入口及着色频率关联起来.
+  IMPLEMENT_GLOBAL_SHADER(FDeferredLightPS, "/Engine/Private/DeferredLightPixelShaders.usf", "DeferredLightPixelMain", SF_Pixel);
+  ```
+
+
+
+**Shader Parameter**：松散参数，一组由 CPU 的 C++ 层传入 GPU Shader 并存储于 GPU 寄存器或显存的数据（FRHITexture、UAV、Uniform buffer）
 没有统一的父类，一般只有一层类
 Parameter 类型和到 GPU 的数据类型一一对应，一个 Parameter 类型对应一种 GPU 数据
 
@@ -493,93 +680,278 @@ class FDeferredLightPS : public FGlobalShader {
 
 
 
-**Uniform Buffer**：最底层的是 RHI 层的 FRHIUniformBuffer，封装了各种图形 API 的统一缓冲区（也叫 Constant Buffer）
-继承自 FRenderResource 在 UE4.27 的版本相比 4.21 版本减少了许多对象
+### 2.4 Shader 变种
 
-**Vertex Factory**：涉及各方面的数据和类型
-继承自 FRenderResource，
+Shader 变种不会被存储在开发文件中，在根据平台打包 Cook 的时候生成
+过多的 Shader 变种会导致包体积的膨胀，增加内存占用
 
-- 顶点着色器
-  顶点着色器的输入输出需要顶点工厂来表明数据的布局
-- 顶点工厂的参数和 RHI 资源
-  这些数据将从 C++ 层传入到顶点着色器中进行处理
-- 顶点缓冲和顶点布局
-  通过顶点布局，我们可以自定义和扩展顶点缓冲的输入，从而实现定制化 Shader 代码
-- 几何预处理
-  顶点缓冲、网格资源、材质参数等等都可以在真正渲染前预处理它们
+- Mesh 无关的材质，一般对应生成一个 Shader
+- Mesh **有关**的材质，会根据用途不同对应生成很多 Shader Code，叫做变种
 
 
 
-**FShader**：已经编译好的着色器代码和它的参数绑定的类型
-存储着 Shader 关联的绑定参数、顶点工厂、编译后的各类资源等数据，并提供了编译器修改和检测接口，其子类有
-
-- **FGlobalShader**
-  全局着色器，只有唯一的实例，常用于屏幕绘制、后处理、光照、工具类、可视化、地形、虚拟纹理等方面
-
-- **FMaterialShader**
-  材质着色器，由 FMaterialShaderType 指定的材质引用的着色器，是材质蓝图在实例化后的一个 shader 子集
-
-- 自定义的 Shader
-
-  ```c++
-  // Shader 声明和实现宏
-  // 声明指定类型（FShader子类）的 Shader, 可以是 Global, Material, MeshMaterial, ...
-  #define DECLARE_SHADER_TYPE(ShaderClass,ShaderMetaTypeShortcut,...)
-  // 实现指定类型的 Shader, 可以是 Global, Material, MeshMaterial, ...
-  #define IMPLEMENT_SHADER_TYPE(TemplatePrefix,ShaderClass,SourceFilename,FunctionName,Frequency)
-  
-  // 声明 FGlobalShader 及其子类.
-  #define DECLARE_GLOBAL_SHADER(ShaderClass)
-  // 实现 FGlobalShader 及其子类.
-  #define IMPLEMENT_GLOBAL_SHADER(ShaderClass,SourceFilename,FunctionName,Frequency)
-  
-  // 实现Material着色器.
-  #define IMPLEMENT_MATERIAL_SHADER_TYPE(TemplatePrefix,ShaderClass,SourceFilename,FunctionName,Frequency)
-  
-  // 其它不常见的宏
-  [......]
-  
-  // 例
-  class FDeferredLightPS : public FGlobalShader
-  {
-      // 1. 在 FDeferredLightPS 类内声明全局着色器
-      DECLARE_SHADER_TYPE(FDeferredLightPS, Global)
-      [......]
-  };
-  
-  // 2. 实现 FDeferredLightPS 着色器, 让它和代码文件, 主入口及着色频率关联起来.
-  IMPLEMENT_GLOBAL_SHADER(FDeferredLightPS, "/Engine/Private/DeferredLightPixelShaders.usf", "DeferredLightPixelMain", SF_Pixel);
-  ```
-
-  
-
-## 3. 缓存对象
-
-![](./images/ShaderContainer.png)
-
-**Shader Map**：存储编译后的 shader 代码
-
-- FGlobalShaderMap：保存并管理着所有编译好的 FGlobalShader 代码，在 `FEngineLoop::PreInitPreStartupScreen` 初始化完成
-- FMaterialShaderMap：存储和管理着一组 FMaterialShader 实例的对象
-- FMeshMaterialShaderMap：存储和管理一组 FMeshMaterialShader 实例的对象
+**Shader 变种的数量** = Permutation Count * **(**<u>VertexFactoryType \* MeshShaderType + MaterialShaderType + ShaderPipelineType \* StageTypes</u>**)**
+其中部分 Shader 可以根据判断条件不去编译，从而避免无用的组合变种出现
 
 
 
 
 
-## 4. 编译流程
+## 3. 编译流程
+
+材质和 Shader 的编译都是一个**离线的过程**，一般在项目启动／打包时进行
+
+**编译 Material**（Cook 时）
+在材质编辑器中，每个材质节点 UMaterialGraphNode 都有一个 UMaterialExpression（表达式）成员实例
+而多个 UMaterialGraphNode 存放在 UMaterialGraph 中，最终由 UMaterial 包含 UMaterialGraph 的信息
+流程（自定义 C++ 材质时，就需要根据编译流程将对应的 C++ 对象都实现）
+
+1. FMaterial 开始不断的序列化内部 ShaderMap 数据
+2. FHLSLMaterialTranslator 通过 MaterialTemplate.ush 编译材质
+3. 编译后的 Shader 代码保存到 FMaterialShaderMap 缓存起来，防止重复编译 
+   材质编辑器之中是可以查看填充 MaterialTemplate 之后的各个目标平台代码（UEEditor / Window / Shader code / HLSL code）
+
+
+
+**编译 Shader**（Cook 时）
+UE4 为了方便跨平台编译，基于[Mesa GLSL parser and IR](https://www.mesa3d.org/) 造了个自己的轮子 HLSLCC（HLSL Cross Compiler）
+通过**输入 HLSL 源码**，会先转成 MCPP，然后转换成各种 shader language 的源代码
+
+生成 Shader 文件的编译流程如下
+
+1. 收集 Shader 的各种变种的可能
+2. 通过 `GShaderCompilingManager` 对象的 `FShaderCompilingManager::AddJobs` 方法
+3. 通过 `FShaderCompileThreadRunnable::PullTasksFromQueue` 方法拉取作业并执行（多生产者多消费者模式）
+
+![](./images/HLSLCC.jpg)
+
+
+
+**注：**由于 OpenGL 和 DirectX 的 UV 坐标不一致，UE4 为了操作的一致性，将 OpenGL 的 UV 进行了垂直翻转（渲染后期会再次翻转回去）
+
+![](./images/ShaderComplie.png)
+
+
+
+**编译 Shader**（运行时）
+
+Shader 还有一个阶段由于图形驱动的限制只能放到运行时编译
+Shader 的**运行时编译**一般产生在准备加载场景时为了不在内存中缓存 Shader Code，避免运行时卡顿
+
+1. 通过运行时预处理所有可能用到的 Shader 变种，记录到列表中
+2. 在加载场景时进行 Shader 编译（指生成 Shader Program）
+
+
+
+## 4. 文件存储
+
+UE 的内置 Shader 文件在 `Engine\Shaders` 目录下
+
+- `.ush` Shader 的声明文件（头文件，可被 include，例 `#include "Common.ush"`）
+- `.usf` Shader 的定义文件（不能被 include）
+- `.tps` Shader 的功能介绍，证书说明文件，本质是 xml 文件
+
+
+
+常用 USH 文件介绍
+
+- **Platform.ush**
+  定义了跟图形API（DirectX、OpenGL、Vulkan、Metal）和 FEATURE_LEVEL 相关的宏、变量及工具类接口
+- **Common.ush**
+  包含了图形 API 或 Feature Level (硬件条件) 相关的宏、类型、局部变量、静态变量、基础工具接口等
+- **Definitions.ush**
+  预先定义了一些常见的宏，防止其它模块引用时出现语法错误
+- **ShadingCommon.ush**
+  定义了材质所有着色模型，并提供了少量相关的工具类接口
+  其中 UE 默认的 ShadingModel ID 只占用 4bit，最多 16 个，而目前 UE 内置着色模型已占用了 13 个，意味着自定义的 ShadingModel 最多只能 3 个了
+- **BasePassCommon.ush**
+  定义了 BasePass 的一些变量、宏定义、插值结构体和工具类接口
+- **VertexFactoryCommon.ush**
+  定义了顶点变换相关的辅助接口
+- **LocalVertexFactoryCommon.ush**
+  顶点工厂的数据插值结构体及部分辅助接口
+- **BRDF.ush**
+  双向反射分布函数模块，提供了很多基础光照算法及相关辅助接口
+- **ShadingModels.ush**
+  着色模型以及光照计算相关的类型和辅助接口
+
+
+
+### 4.1 Shader 文件的内部结构
+
+以 BasePass 的 Shader 为例：
+
+```c
+// 【VS】BasePassVertexShader.usf 文件主要结构
+// cbuffer: constant buffer HLSL 使用的 buffer 类型
+cbuffer View {
+    float4x4 View_WorldToClip;
+    // ...
+}
+
+cbuffer Primitive {
+    float4x4 Primitive_LocalToWorld;
+    // ...
+}
+
+// GeometryCacheVertexFactory.ush
+// InputLayout: 声明顶点内存布局
+struct FVertexFactoryInput {
+    float4 Position : ATTRIBUTE0;
+    half3 TangentX  : ATTRIBUTE1;
+    half4 TangentZ  : ATTRIBUTE2;
+    float4 Color    : ATTRIBUTE3;
+    float2 MotionBlurData : ATTRIBUTE4;
+}
+
+void MainVS(FVertexFactoryInput Input, ...) { /** ... */ }
+```
+
+
+
+### 4.2 Shader 文件和 C++ 对象建立联系
+
+```c++
+// 1. 新建着色器文件 iShaderFile.usf
+float4 MyColor;
+float4 MainPS() : SV_Target0
+{
+    return MyColor;
+}
+
+// 2. 新建 C++ 类（对应着色代码中 PS 函数）
+#include "GlobalShader.h"
+class FMyTestPS : public FGlobalShader
+{
+    DECLARE_EXPORTED_SHADER_TYPE(FMyTestPS, Global, /*MYMODULE_API*/);
+
+    FShaderParameter MyColorParameter;
+
+    FMyTestPS() { }
+    FMyTestPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+        : FGlobalShader(Initializer)
+    {
+        // 3. 绑定 C++ 的成员变量到 Shader 文件中的参数 MyColor
+        MyColorParameter.Bind(Initializer.ParameterMap, TEXT("MyColor"), SPF_Mandatory);
+    }
+}
+
+// 4. 注册着色器类型
+//    建立着色器文件 iShaderFile.usf 到 着色入口函数 MainPS 与频率/着色阶段（SF_Pixel）的映射关系
+IMPLEMENT_SHADER_TYPE(, FMyTestPS, TEXT("iShaderFile"), TEXT("MainPS"), SF_Pixel);
+```
 
 
 
 
 
-## 5. 开发流程
+## 5. 调试和优化
 
-### 5.1 调试
+**调试 Shader**
 
-### 5.2 优化
+同过修改 `Engine\Config\ConsoleVariables.ini` 内的配置变量，查看 Shader 源码（不开启将是汇编指令）单步调试
 
-### 5.3 使用举例
+- **r.ShaderDevelopmentMode**=1
+  获得关于着色器编译的详细日志和错误重试的机会
+- **r.DumpShaderDebugInfo**=1
+  将编译的所有着色器的文件保存到磁盘 `ProjectName/Saved/ShaderDebugInfo` 目录
+  包含源文件、预处理后的版本、一个批处理文件（用于使用编译器等效的命令行选项来编译预处理版本）
+- **r.Shaders.Optimize**=0
+  禁用着色器优化，使得 shader 的调试信息被保留
+- **r.DumpShaderDebugShortNames**=1
+  保存的 Shader 路径将被精简
+- **r.Shaders.KeepDebugInfo**=1
+  保留调试信息，配合 RenderDoc 等截帧工具时特别有用
+- **r.Shaders.SkipCompression**=1
+  忽略 shader 压缩，省调试时间
+
+
+
+**通过 UE4 控制台输入调试 Shader**
+
+- 控制台输入 `RecomplieShaders` 命令可以重新编译 Shader，这样就不需要通过重启 UE 编辑器来重新编译 Shader 了
+- [通过在 VisualStudio 配置后，在通过 ShaderCompileWorker 的命令来调试 Shader](https://docs.unrealengine.com/4.26/zh-CN/ProgrammingAndScripting/Rendering/ShaderDevelopment/ShaderCompileProcess/)
+- 可以[使用 Render doc 来调试游戏](https://blog.csdn.net/kuangben2000/article/details/106867601)
+  UE4 的项目可以命令行参数 `-opengl -featureleveles31`  在 Windows 系统上**强制使用 OpenGL 渲染**，并且说明使用 OpenGL ES 3.1 版本渲染
+  ![](./images/RenderDoc.png)
+
+
+
+**优化 Shader 的执行效率**
+
+1. 通过减少不必要的功能配置来减少 Shader 自动生成的种类
+   ![](./images/ShaderOpt1.jpg)
+
+2. 同过关闭部分模块有的 `ShouldCompilePermutation` 接口来减少 Shader 自动生成的种类 FShader
+   以下模块都有此接口
+   FGlobalShader、FMaterialShader、FMeshMaterialShader、FVertexFactory
+   FLocalVertexFactory、FShaderType、FGlobalShaderType、FMaterialShaderType
+
+3. 关闭材质属性模板的 `Usage / Automatically Set Usage in Editor` 选项，防止编辑过程中产生额外的标记，减少 Shader 自动生成的种类 FShader
+   鼠标放在相应的位置会有功能提示，以便做详细的优化
+   ![](./images/Material2.jpg)
+
+4. 在项目设置中的 `Used Static Lighting`，关闭后会减少自动生成静态光照用的着色器数量
+
+5. 减少在材质蓝图中的 Switch 节点的使用
+   Switch 的真假会各生成一个版本
+   质量开关节点  quality switch，引擎会为其中一个输入的每个版本都生成不同版本的着色器
+
+6. 指令优化
+
+   ```c++
+   /**
+   1. 避免 if、switch 分支语句
+   2. 避免 for 循环语句，特别是循环次数可变的
+   3. 避免或减少临时变量
+   4. 减少纹理采样次数
+   5. 减少复杂数学函数调用
+   6. 尽量将 Pixel Shader 计算移到 Vertex Shader 
+      例如像素光改成顶点光
+   7. 降分辨率渲染
+      有些信息没有必要全分配率渲染，如模糊的倒影、SSR、SSGI 等
+   8. 尽可能用 Compute Shader 代替传统的 VS、PS 管线
+      CS 的管线更加简单、纯粹，利于并行化计算，结合 LDS 机制，可有效提升效率
+   9. 禁用 clip 或 discard 操作
+   10. 分级策略
+       不同画质不同平台采用不同复杂度的算法
+   
+   11. 顶点输入应当采用逐 Structure 的布局，避免每个顶点属性一个数组
+       逐 Structure 的布局有利于提升 GPU 缓存命中率
+   
+   12. 使用更低精度的浮点数
+       OpenGL ES 的浮点数有三种精度（很多计算不需要高精度，可以改成低精度浮点）
+       - highp（32位浮点）
+       - mediump（16位浮点）
+       - lowp（8位浮点）
+   */
+   
+   // 13. 避免重复计算
+   // - 将跟顶点或像素无关的计算移到 CPU，然后通过 uniform 传进来
+   // - 可以将所有像素一样的变量提前计算好，或者由 C++ 层传入：
+   precision mediump float;
+   float a = 0.9;
+   float b = 0.6;
+   
+   varying vec4 vColor;
+   
+   void main() {
+       gl_FragColor = vColor * a * b; // a * b每个像素都会计算，导致冗余的消耗。可将 a * b 在 c++ 层计算好再传进 shader
+   }
+   
+   // 14. 向量延迟计算
+   highp float f0, f1;
+   highp vec4 v0, v1;
+   v0 = (v1 * f0) * f1; // v1 和 f0 计算后返回一个向量，再和 f1 计算，多了一次向量计算
+   // 改成：
+   v0 = v1 * (f0 * f1); // 先计算两个浮点数，这样只需跟向量计算一次
+   
+   // 15. 充分利用向量分量掩码
+   highp vec4 v0;
+   highp vec4 v1;
+   highp vec4 v2;
+   v2.xz = v0 * v1; // v2 只用了 xz 分量，比 v2 = v0 * v1 的写法要快
+   ```
 
 
 
@@ -587,6 +959,8 @@ class FDeferredLightPS : public FGlobalShader {
 
 # 引用
 
+- [DirectX11--HLSL语法入门](https://www.cnblogs.com/X-Jun/p/12246859.html)
+- [DirectX11 With Windows SDK--09 纹理映射与采样器状态](https://www.cnblogs.com/X-Jun/p/9297810.html)
 - [《Exploring in UE4》多线程机制详解 原理分析 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/38881269)
 - [剖析虚幻渲染体系（02）- 多线程渲染 - 0向往0 - 博客园 (cnblogs.com)](https://www.cnblogs.com/timlly/p/14327537.html)
 - [A new, community-hosted Unreal Engine Wiki - Announcements and Releases - Unreal Engine Forums](https://forums.unrealengine.com/t/a-new-community-hosted-unreal-engine-wiki/141494)
@@ -594,4 +968,11 @@ class FDeferredLightPS : public FGlobalShader {
 - [UE4 Instance 使用 – Cheney Shen](https://cheneyshen.com/ue4-instance-使用/)
 - [UE4 Mesh Drawing pipeline official](https://docs.unrealengine.com/zh-CN/Programming/Rendering/MeshDrawingPipeline/index.html)
 - [游戏程序员的自我修养-房燕梁 ](https://neil3d.github.io/unreal/mcpp-fork-join.html)
+- [Unreal Engine 4 Rendering Part 2: Shaders and Vertex Data](https://medium.com/@lordned/unreal-engine-4-rendering-part-2-shaders-and-vertex-data-80317e1ae5f3)
+- [Unreal Engine 4 Rendering Part 5: Shader Permutations](https://medium.com/@lordned/unreal-engine-4-rendering-part-5-shader-permutations-2b975e503dd4)
+- [【UE4 Renderer】<03> PipelineBase](https://zhuanlan.zhihu.com/p/39464715)
+- [调试着色器编译过程 | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.26/zh-CN/ProgrammingAndScripting/Rendering/ShaderDevelopment/ShaderCompileProcess/)
+- [着色器开发 | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.26/zh-CN/ProgrammingAndScripting/Rendering/ShaderDevelopment/)
+- [新建全局着色器为插件 | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.26/zh-CN/ProgrammingAndScripting/Rendering/ShaderInPlugin/QuickStart/)
+- [启用和编译 PSO 缓存 | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.27/zh-CN/SharingAndReleasing/PSOCaching/EnablingBuildingPSOCaching/)
 

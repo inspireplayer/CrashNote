@@ -8,15 +8,30 @@
 
 1. **软件配置**
    安装 Visual Studio 2017，Git
+   由于 win 对于文件路径限制在 255 字符以内，建议将 UE 的源码直接放在**磁盘根目录下**
+   
 2. **平台依赖软件包准备**
    执行 `Setup.bat` 脚本，通过 Git 下载当前平台依赖的额外资源，它们存放在 UE 源码的 `FeaturePacks` 文件夹
+   
+   ```sh
+   # Setup.bat 加速
+   # 在 set PROMPT_ARGUMENT=--prompt 这里使用多线程来加速
+   set PROMPT_ARGUMENT=--prompt --threads=20
+   ```
+   
 3. **构建项目**
    执行 `GenerateProjectFiles.bat` 脚本，它会调用 `Engine/Build/BatchFiles` 下的 bat 脚本文件
    里面的脚本会自动调用 Unreal Build Tool 项目，生成 `Unreal Build Tool.exe` 
    通过另外的一个脚本调用 `Unreal Build Tool.exe` 传入一些参数创建解决方案  `UE4.sln`
+   
 4. **生成 UE 各种游戏开发软件**
-   打开 `UE4.sln` 选择一种编译模式（如： Development Editor），选中解决方案 UE4，生成一下
+   打开 `UE4.sln` 选择一种编译模式（如： Development Editor），选中解决方案 UE4，**生成 Build一下**
    在文件夹 `Engine/Binaries/Win64` 找到对应编译平台生成的 UE4Editor.exe 等软件
+   
+5. **UnrealVersionSelector**
+   大部分用 UE Edtior 创建的不含有 C++ 文件的项目是不需要通过 Visual Studio 打开的，一般都需要用 UnrealVersionSelector 这个程序
+   这个程序诞生于对 UE 解决方案的编译（Win 使用时需要先双击一下注册程序到 Win 的注册表）
+   主要用来控制 UE Edtior 生成的 `.uproject` 文件（Win 选中后右键）在打开时使用哪个 UEEdtior 的版本（不同 UE 版本兼容性不太好）
 
 
 
@@ -24,25 +39,202 @@
 
 Unreal Build Tool 是 UE 自己的跨平台构建工具，它代替了传统的 makefile 或 MS build
 本质上是个命令行程序，通过运行脚本 `GenerateProjectFiles[.sh/.bat/.command]` 来执行：
-生成工程文件、**解析所有依赖模块**、执行Unreal Header Tool、为各种不同的平台个构建风格调用编译器（Compiler）和连接器（Linker）等功能
+生成工程文件、**解析所有依赖模块**、执行 Unreal Header Tool、为各种不同的平台个构建风格调用编译器（Compiler）和连接器（Linker）等功能
 
-### 2.1 Modules（模块）
+### 2.1 模块 Modules
+
+**模块的分类**
 
 - C# 模块
   使用 `.csproj`（Visual Studio C#工程描述文件）作为它的工程文件
 - C++ 模块
-  使用 `模块名.build.cs` 文件来定义，这个文件跟 `vcxproj`（Visual Studio C++工程描述文件）类似
+  使用 `模块名.build.cs` 文件来定义（实际上是一个 C# 文件），这个文件跟 `vcxproj`（Visual Studio C++工程描述文件）类似
   模块项目里 Public 目录下是对外暴露的接口，Private 则是内部使用的接口
 
 
 
-### 2.2 构建配置
+**模块的创建流程**
+模块的创建多用于 GamePlay 项目，而非引擎内部
+
+1. 创建 Private、Public 文件夹
+
+2. 创建 模块名.build.cs、 模块名.h、 模块名.cpp 文件
+
+   ```c++
+   // 目录结构
+   /**
+   /模块名
+    |_ 模块名.build.cs
+    |_ /Public
+    |       |_ 模块名.h
+    |       |_ [模块名PrivatePCH.h] // 可以将模块内通用的头文件发在这个头文件中来加快编译
+    |_ /Private
+            |_ 模块名.cpp
+   */
+   
+   // 模块名.build.cs: ModuleDev.build.cs
+   using UnrealBuildTool;
+   
+   // 类的名称与模块名称一致
+   public class ModuleDev : ModuleRules
+   {
+       public ModuleDev(ReadOnlyTargetRules Target) : base(Target)
+       {
+           PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUOject" });
+           PrivateDependencyModuleNames.AddRange(new string[] { });
+       }
+   }
+   
+   // 模块名.h: ModuleDev.h
+   #pragma once
+   #include "ModuleDevPrivatePCH.h" // 如果有这个文件
+   
+   class FModuleDevModule : public IModuleInterface
+   {
+   public:
+   	/** IModuleInterface implementation */
+   	virtual void StartupModule() override;
+   	virtual void ShutdownModule() override;
+   };
+   
+   // 模块名.cpp: ModuleDev.cpp
+   #include "ModuleDev.h"
+   IMPLEMENT_MODULE(FModuleDevModule, ModuleDev);
+   // or 至少有一个 primary 模块，其他模块可用 IMPLEMENT_GAME_MODULE 注册
+   // IMPLEMENT_PRIMARY_GAME_MODULE(YourModuleNameClass, YourModuleName);
+   ```
+
+3. 引入模块
+
+   将模块代码放入 UE 工程文件的 Source 文件夹里，找到 `工程名.Target.cs` 文件
+
+   ```c
+   using UnrealBuildTool;
+   using System.Collections.Generic;
+   
+   public class UE4GameTarget : TargetRules
+   {
+   	public UE4GameTarget(TargetInfo Target) : base(Target)
+   	{
+   		Type = TargetType.Editor;
+   
+   		ExtraModuleNames.Add("UE4Game");
+           ExtraModuleNames.AddRange(new string[] { "ModuleDev" });
+   	}
+   }
+   ```
+
+4. 打开 `项目名.uproject` 文件
+
+   ```c
+   // 具体配置参数见 Engine\Source\Runtime\Projects\Public\ModuleDescriptor.h
+   // PostConfigInit：引擎初始化阶段，在配置系统初始化完成后 PreLoadingScreen：引擎初始化阶段，可以在这里挂入 LoadingScreen 的注册
+   // PreDefault：引擎初始化阶段，在 Default 阶段之前
+   // Default：引擎初始化阶段，此时所有的游戏模块加载已经完成
+   // PostDefault：引擎初始化阶段，在Default阶段之后
+   // PostEngineInit：引擎初始化完成后
+   // None：不会自动加载
+   "Modules": [
+       {
+           "Name": "YourProject",
+           "Type": "Runtime",
+           "LoadingPhase": "Default"
+       },
+       {
+           "Name": "YourModule",
+           "Type": "Runtime",
+           "LoadingPhase": "Default"
+       },
+       {
+           "Name": "YourModuleEdit",
+           "Type": "Editor",
+           "LoadingPhase": "PreDefault" // 注意 Editor 类型的这里
+       }
+   ]
+   ```
+   
+5. 重新生成项目
+   为了防止文件冲突， 删除掉 `Engine/Binaries` 和 `Engine/Intermediate` 文件夹之后
+   再点击 Uproject 右键 Generate
+
+
+
+### 2.2 插件 Plugins
+
+位置：`Engine/Plugins`，和 Source 在同一个文件夹
+
+目录结构：
+
+```c
+/**
+/插件名
+ |_ /Resources
+ |    |_ Icon128.png // 在 UEEditor 里的 Icon
+ |_ /Source
+ |    |_ 插件名
+ |         |_ /Public
+ |         |     |_ 插件名.h
+ |         |     |_ [插件名PrivatePCH.h] // 可以将模块内通用的头文件发在这个头文件中来加快编译
+ |         |_ /Private
+ |               |_ 插件名.cpp
+ |_ 插件名.uplugin
+*/
+```
+
+插件的创建多用于对 UEEditor 和引擎的扩展，创建流程前两步和创建模块一样
+
+3. 引入模块
+   修改 `插件名.uplugin`
+
+   ```c
+   {
+       "FileVersion": 3,
+       "Version": 1,
+       "VersionName": "1.0",
+       "FriendlyName": "插件名",
+       "Description": "插件描述",
+       "Category": "Other",
+       "CreatedBy": "",
+       "CreatedByURL": "",
+       "DocsURL": "",
+       "MarketplaceURL": "",
+       "SupportURL": "",
+       "Modules": [ // 在这里引入插件模块
+           {
+               "Name": "插件模块名称",
+               "Type": "Editor",                 
+               "LoadingPhase" : "PostEngineInit"  // 插件模块加载时机
+           }
+       ],
+       "EnabledByDefault": true,
+       "CanContainContent": true,
+       "IsBetaVersion": false,
+       "Installed": false
+   }
+   ```
+
+4. 重新生成项目
+   同模块的重新生成项目方法一致
+
+
+
+模块和插件的加载流程：虽然插件和模块的加载时机可以在 uproject 或者 uplugin 文件配置在读取 .ini 文件前后加载，但总体的流程还是不变的
+
+1. 加载 Platform File Module
+2. 加载 CoreUObject
+3. 加载 Render ... 等
+4. 加载 Core
+5. 加载 Networking
+6. 加载 运行平台相关模块
+7. 根据 Plugin 的启用状态加载 Plugin 模块
+
+
+
+### 2.3 构建配置
 
 状态 Status：
 
 ![](./images/status.png)
-
-
 
 目标 Targets：
 
@@ -50,7 +242,7 @@ Unreal Build Tool 是 UE 自己的跨平台构建工具，它代替了传统的 
 
 
 
-### 2.3 游戏项目目录结构
+### 2.4 游戏项目目录结构
 
 不管是 **引擎工程** 还是 **游戏工程** 都含有以下目录结构
 
@@ -95,10 +287,10 @@ Unreal Build Tool 是 UE 自己的跨平台构建工具，它代替了传统的 
    UCLASS(Config=Game)
    class AExampleClass : public AActor
    {
-   GENERATED_UCLASS_BODY()
+       GENERATED_UCLASS_BODY()
    
-   UPROPERTY(Config)
-   float ExampleVariable; // 配置属性，可以被子类继承后继续使用
+       UPROPERTY(Config)
+       float ExampleVariable; // 配置属性，可以被子类继承后继续使用
    };
    
    // 2. 在 Engine/Config/*.ini 文件设置配置类的初始值
@@ -124,25 +316,67 @@ Unreal Build Tool 是 UE 自己的跨平台构建工具，它代替了传统的 
    在 UE4Editor 的 输出日志窗口、消息日志窗口 查看 log 信息
    在 UE4Editor 的 运行游戏画面窗口，查看 `UEngine::AddOnScreenDebugMessage` 的 log 信息
 
-7. **性能分析**
-   使用 RenderDoc 抓取 GPU 绘制信息 [RenderDoc | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.27/zh-CN/TestingAndOptimization/PerformanceAndProfiling/RenderDoc/)
+7. **测试项目**
+   在模块文件夹下的 `Private/Tests` 文件夹中新建 `模块名Test.cpp` 文件
 
-8. **转化 / 烘焙（Cook）项目**，使用 UE4Editor 的虚幻自动化工具（UAT，Unreal Automation Tool）
+   ```c
+   #include "模块名PrivatePCH.h"
+   #include "Misc/AutomationTest.h"
+   
+   DEFINE_LOG_CATEGORY_STATIC(TestLog, Log, All)
+   IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiThreadTest,
+                                    "TestGroup.TestSubgroup.MultiThreadTest", 
+                                    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter
+   )
+   
+   bool FMultiThreadTest::RunTest(const FString& Parameters)
+   {
+       UE_LOG(TestLog, Log, TEXT("Hello"));
+       
+       return true; // 测试通过
+   }
+   ```
+
+   重新生成 UProject，在重新编译 UEEditor，来执行[自动测试](https://docs.unrealengine.com/4.27/zh-CN/TestingAndOptimization/Automation/TechnicalGuide/)
+   在 `Window/Developer Tools/Session Frontend` 里的 `Automation` 标签页里找到 **MultiThreadTest** 勾选后点击 `Start Tests` 
+   然后通过 `Session Frontend` 里的 `Console`  标签页来查看 Log 信息
+
+8. **性能分析**
+   使用 RenderDoc 抓取 GPU 绘制信息 [RenderDoc | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.27/zh-CN/TestingAndOptimization/PerformanceAndProfiling/RenderDoc/)，[Render Doc 使用说明](https://zhuanlan.zhihu.com/p/80704313)
+
+9. **转化 / 烘焙（Cook）项目**，使用 UE4Editor 的虚幻自动化工具（UAT，Unreal Automation Tool）
    将引擎内部使用的特定格式存储内容资源（如用 PNG 存储纹理）转换成打包平台下更节省内存或者性能更好的格式
 
-9. **打包项目**，使用 UE4Editor 
+10. **打包项目**，使用 UE4Editor 
    将项目打包成平台原生的分发格式
 
-10. 打补丁，使用 UE4Editor
-   在最初的发布之后对其进行更新
-   方法一：保留原始版本或之前版本中的文件，但添加一个指向新内容的指针
-   方法二：使用二进制补丁转换原始版本中的内容
+11. 打补丁，使用 UE4Editor
+      在最初的发布之后对其进行更新
+      方法一：保留原始版本或之前版本中的文件，但添加一个指向新内容的指针
+      方法二：使用二进制补丁转换原始版本中的内容
 
 
 
-## 4. 插件编写流程
+## 4. 扩展 - 游戏项目开发流程
 
-继承自 IModuleInterface
+**开发流程**
+
+1. 策划设计（策划提需求）
+2. 主程分析和分配需求
+3. 开发联调，方案审核
+4. 策划配置游戏数据和程序联调
+5. 策划自测游戏
+6. 策划通知程序合并分支
+7. QA 测试
+8. 版本发布
+
+
+
+**项目管理工具**
+
+- 项目流程管理：JIRA
+- 项目知识库：Confluence（防止不同的人在同一个问题上重复踩坑）
+- 自动打包发布：Jenkins
 
 
 
@@ -269,6 +503,8 @@ private:
     // 在要保存的属性声明前添加
     UPROPERTY(Config)
 	float iValue; // 要保存的属性
+    
+    
 }
 
 // 四、配置标题 Section 的种类
@@ -297,9 +533,10 @@ iValue = 1.0f
 
 
 
-## 3. 预编译 Unreal Header Tool
+## 3. 预编译 UBT，UHT
 
-Unreal Header Tool（简称 UHT）一个分析源码标记并生成代码的工具 ，在 UE Editor 里的编译是调用 UHT
+Unreal Build Tool（UBT，C#）读取每个模块的 Target.cs、Build.cs，处理依赖关系，编译每个模块
+Unreal Header Tool（UHT，C++）一个分析源码标记并生成代码的工具 ，在 UE Editor 里的编译是调用 UHT
 为了更好的服务于 C++ 的反射功能，具备
 
 1. 只在类代码里添加一些宏标记，不破坏原来的类声明结构
@@ -310,16 +547,18 @@ Unreal Header Tool（简称 UHT）一个分析源码标记并生成代码的工�
    
    
 
-UE 具有反射功能的类定义示例
+UE 具有反射功能的类定义示例，具体使用方式是见 [Unreal 官方文档 | 游戏性架构 / 属性](https://docs.unrealengine.com/4.27/zh-CN/ProgrammingAndScripting/GameplayArchitecture/Properties/)
 ```c++
 UCLASS()
 class HELLO_API UMyClass : public UObject
 {
 	GENERATED_BODY()
 public:
+    // 蓝图属性
 	UPROPERTY(BlueprintReadWrite, Category = "Test")
 	float Score;
 
+    // 蓝图方法
 	UFUNCTION(BlueprintCallable, Category = "Test")
 	void CallableFuncTest();
 };
@@ -327,13 +566,13 @@ public:
 
 
 
-
 ## 4. UE4 总体编译流程
 
-1. Unreal Header Tool 读取 `Engine/Config/*.ini` 下的配置类的值准备给配置类做初始化
-2. Unreal Header Tool 根据编译脚本执行 UE 的预编译
-3. Unreal Build Tool 根据编译脚本分别编译各个已经预编译好的模块
-4. Unreal Build Tool 根据编译脚本链接各个模块，最终生成可执行文件
+1. Unreal Build Tool 根据编译脚本为了编译各个已经预编译好的模块
+   调用 Unreal Header Tool 执行 UE 的预编译，生成反射所需要的文件 *.generated.h 
+2. 调用平台特定的编译工具(VisualStudio, LLVM) 来编译各个模块
+3. Unreal Build Tool 根据编译脚本链接各个模块，最终生成可执行文件
+4. 引擎代码读取 `Engine/Config/*.ini` 下的配置类的值准备给配置类做初始化
 
 
 
@@ -352,7 +591,7 @@ public:
 - 接口类 Interface，使用 I 作为前缀，如，IAbilitySystemInterface
 - 模板类 Template，使用 T 作为前缀，如，TArray
 - 继承 SWidget 的类(Slate UI)，使用前缀 S，如，SButton
-- 除此之外的命名都用F前缀，如，FVector
+- 除此之外的纯 C++ 命名都用 F 前缀，如，FVector
   （以前F代表的意思是Float，当时引擎的计算都是浮点数，但后来数学计算扩展到整数，而且引擎的传播很迅速，所以来不及改成更好的前缀字母了）
 
 ![](./images/class_struct.png)
@@ -575,7 +814,7 @@ UE4 的 GC 通过追踪 UObject 极其子类的标记状态来实现，其 GC �
 
 **簇 Cluster**
 
-- 作用：减少标记遍历时间
+- 作用：减少标记遍历时间，加速 Cook 后对象的回收
 
 - 方法：一次标记一棵子引用关系图，Cluster 将一棵高度为 N 的树统一转换高度为 1（一个根节点指向这棵树的其他所有节点）
 
@@ -696,19 +935,14 @@ public:
 
 
 
-# 四、资源加载流程
-
-
-
-
-
-
-
 # 引用
 
 - [用 Launcher 引擎调试 UE4 源码的方法 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/133172832)
 - [Unreal Property System (Reflection) (unrealengine.com)](https://www.unrealengine.com/zh-CN/blog/unreal-property-system-reflection)
+- [Unreal 官方文档 | 游戏性架构 / 属性](https://docs.unrealengine.com/4.27/zh-CN/ProgrammingAndScripting/GameplayArchitecture/Properties/)
+- [Unreal 官方文档 | 游戏性架构 / 游戏模块](https://docs.unrealengine.com/4.27/zh-CN/ProgrammingAndScripting/GameplayArchitecture/Gameplay/)
 - [UE4 Config 配置文件详解（2017.4.1更新）_Jerish 的博客-CSDN博客](https://blog.csdn.net/u012999985/article/details/52801264)
+- [UE4 中的配置文件](https://zhuanlan.zhihu.com/p/150373398)
 - [深入研究虚幻 4 反射系统实现原理（一） - 风恋残雪 - 博客园 (cnblogs.com)](https://www.cnblogs.com/ghl_carmack/p/5701862.html)
 - [C++ 反射机制的实现_ freshman94 的博客-CSDN 博客_C++ 反射](https://blog.csdn.net/qq_22660775/article/details/89713867)
 - [《InsideUE4》UObject（一）开篇 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/24319968)
@@ -717,4 +951,5 @@ public:
 - [编译配置参考 | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.26/zh-CN/ProductionPipelines/DevelopmentSetup/BuildConfigurations/)
 - [深入研究虚拟机之垃圾收集（GC）算法实现 - 牧涛 - 博客园 (cnblogs.com)](https://www.cnblogs.com/superjt/p/5946059.html)
 - [UE4 垃圾回收 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/341137213)
+- [UE4 性能分析和优化](https://zhuanlan.zhihu.com/p/150110172)
 

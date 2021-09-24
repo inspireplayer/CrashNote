@@ -303,7 +303,7 @@ LOD 0 为原始尺寸，从 LOD 1 开始，LOD n 的纹理宽高为 LOD n-1 的�
 
 2. 根据采样比例分别在 X、Y 方向上采用 *三线性过滤* 或 *双线性过滤* 获得采样数据，**采样的范围由异向程度决定，不是原来的 2 X 2 像素矩阵**
 
-   例，64 X 64的纹理最后投影到屏幕上占了128 X 32 的像素矩阵
+   例，64 X 64 的纹理最后投影到屏幕上占了 128 X 32 的像素矩阵
    异向程度为 4，且在 缩放方面 X 轴 > Y 轴，所以 X 轴采样 2 个像素，Y 轴采样 2 * 异向程度 = 8 个像素
    采样范围为最接近中心点纹理坐标的 2 X 8 的像素矩阵
 
@@ -318,6 +318,40 @@ glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 异向程度);
 各向异性对比三线性
 
 ![](images/texture_anisotropic.jpg)
+
+
+
+### 2.4 多级渐远纹理过滤 Mipmap
+
+![](./images/texture_mipmap.jpg)
+
+Migmap 用来对同一纹理生成多个不同尺寸的纹理，用 *Level of Detail* (**LOD**) 来规定纹理缩放的大小
+LOD 0 为原始尺寸，从 LOD 1 开始，LOD n 的纹理宽高为 LOD n-1 的一半，直到纹理的大小缩放为 1 X 1 为止
+
+距观察者的距离超过一定的阈值，OpenGL会使用不同的多级渐远纹理，即最适合物体的距离的那个。由于距离远，解析度不高也不会被用户注意到
+
+优点：效果最好，适用于动态物体或景深很大的场景
+缺点：效率低，会占用一定的空间，只能用于纹理被缩小的情况
+
+![](./images/texture_mipmapping.png)
+
+开启 Mipmap 下的纹理采样
+
+![](./images/texture_mipmap.png)
+
+例，三线性过滤 Trilinear 方法：
+
+1. 取 Mipmap 纹理中距离与当前屏幕上尺寸相近的两个纹理
+
+2. 将 1 中选取的纹理 选择最接近中心点纹理坐标的 2 X 2 纹理单元矩阵进行采样（线性过滤）
+
+3. 将 2 中两次采样的结果进行加权平均（**8 个纹理单元**采样），得到最后的采样数据
+
+
+
+MipMap Level 计算
+
+<img src="./images/conpute_mipmaplevel.png" style="zoom:150%;" />
 
 
 
@@ -973,21 +1007,21 @@ HDR 渲染的真正优点在庞大和复杂的场景中应用复杂光照算法�
 # 引用
 
 1. [Render To Texture](http://www.paulsprojects.net/opengl/rtotex/rtotex.html)
-2. [Lesson 2: Triangle rasterization and back face culling · ssloy/tinyrenderer Wiki (github.com)](https://github.com/ssloy/tinyrenderer/wiki/Lesson-2:-Triangle-rasterization-and-back-face-culling)
-3. [(PDF) Accelerated Half-Space Triangle Rasterization (researchgate.net)](https://www.researchgate.net/publication/286441992_Accelerated_Half-Space_Triangle_Rasterization)
-4. [learnopengl-基础光照](https://learnopengl-cn.github.io/02 Lighting/02 Basic Lighting/)
-5. [learnopengl-法线贴图](https://learnopengl-cn.github.io/05%20Advanced%20Lighting/04%20Normal%20Mapping/)
-6. [learnopengl-立方体贴图](https://learnopengl-cn.github.io/04 Advanced OpenGL/06 Cubemaps/#_7)
-7. [Understanding Perlin Noise](https://flafla2.github.io/2014/08/09/perlinnoise.html)
-8. [基于 ComputeShader 生成 Perlin Noise 噪声图](https://zhuanlan.zhihu.com/p/88518193)
-9. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
-10. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
-11. [A Standard Default Color Space for the Internet - sRGB](https://www.w3.org/Graphics/Color/sRGB)
-12. [为什么线性渐变的填充，直方图的两头比中间高？ - 黄一凯的回答 - 知乎](https://www.zhihu.com/question/61996849/answer/193452971)
-13. [Learning DirectX 12 – Lesson 4 – Textures](https://www.3dgep.com/learning-directx-12-4/)
-14. [Unity GPU优化(Occlusion Culling 遮挡剔除，LOD 多细节层次，GI 全局光照)](https://gameinstitute.qq.com/community/detail/120912)
-15. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
-16. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
-17. [深入探索透视纹理映射（下）](https://blog.csdn.net/popy007/article/details/5570803)
-18. https://mathworld.wolfram.com/topics/RandomPointPicking.html
+2. [Implementing an anisotropic texture filter](https://www.sciencedirect.com/science/article/abs/pii/S0097849399001594)
+3. [Lesson 2: Triangle rasterization and back face culling · ssloy/tinyrenderer Wiki (github.com)](https://github.com/ssloy/tinyrenderer/wiki/Lesson-2:-Triangle-rasterization-and-back-face-culling)
+4. [(PDF) Accelerated Half-Space Triangle Rasterization (researchgate.net)](https://www.researchgate.net/publication/286441992_Accelerated_Half-Space_Triangle_Rasterization)
+5. [learnopengl-基础光照](https://learnopengl-cn.github.io/02 Lighting/02 Basic Lighting/)
+6. [learnopengl-法线贴图](https://learnopengl-cn.github.io/05%20Advanced%20Lighting/04%20Normal%20Mapping/)
+7. [learnopengl-立方体贴图](https://learnopengl-cn.github.io/04 Advanced OpenGL/06 Cubemaps/#_7)
+8. [Understanding Perlin Noise](https://flafla2.github.io/2014/08/09/perlinnoise.html)
+9. [基于 ComputeShader 生成 Perlin Noise 噪声图](https://zhuanlan.zhihu.com/p/88518193)
+10. [Unity_Shaders_Book : https://github.com/candycat1992/Unity_Shaders_Book](https://link.zhihu.com/?target=https%3A//github.com/candycat1992/Unity_Shaders_Book)
+11. [Unity Manual: https://docs.unity3d.com/Manual/TextureTypes.html](https://link.zhihu.com/?target=https%3A//docs.unity3d.com/Manual/TextureTypes.html)
+12. [A Standard Default Color Space for the Internet - sRGB](https://www.w3.org/Graphics/Color/sRGB)
+13. [为什么线性渐变的填充，直方图的两头比中间高？ - 黄一凯的回答 - 知乎](https://www.zhihu.com/question/61996849/answer/193452971)
+14. [Learning DirectX 12 – Lesson 4 – Textures](https://www.3dgep.com/learning-directx-12-4/)
+15. [Unity GPU优化(Occlusion Culling 遮挡剔除，LOD 多细节层次，GI 全局光照)](https://gameinstitute.qq.com/community/detail/120912)
+16. [《我所理解的 Cocos2d-x》秦春林](https://book.douban.com/subject/26214576/)
+17. [《Unity Shader 入门精要》冯乐乐](https://book.douban.com/subject/26821639/)
+18. [深入探索透视纹理映射（下）](https://blog.csdn.net/popy007/article/details/5570803)
 
