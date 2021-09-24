@@ -12,6 +12,11 @@ UObject 的整体继承关系如下：
 
 UObject 在 Gameplay 架构里的继承关系如下：
 
+- AActor：只有需要挂载组件时才会继承 AActor（开始有了 Tick 更新函数）
+- APawn：如同肉体，只能被操作，没有自己的逻辑
+- ACharacter：继承自 APawn，具有胶囊体的可移动的肉体，只有碰撞和移动逻辑
+- AController：如同灵魂，是行为的抽象，比如一群同种族的怪物的行为是一样的，那么他们都可以被同一个行为对象 Controller 控制
+
 > 查看原图更清晰
 
 ![](./images/GamePlayClass.png)
@@ -27,6 +32,14 @@ Gameplay 架构组合关系大体如下
 ## 2. MVC 的数据处理方式
 
 Gameplay 架构类按照 MVC 设计理念分类如下
+
+- Model：APawn
+
+- View：APawn 挂载的动态网格组件
+
+- Controller：AController
+
+
 ![](./images/MVC.jpg)
 
 
@@ -34,6 +47,8 @@ Gameplay 架构类按照 MVC 设计理念分类如下
 
 
 # 二、UE4 多线程
+
+> UE4 还提供了对进程的封装，在 Core 模块的 GenericPlatformProcess 中，静态方法 `FProcHandle FGenericPlatformProcess::CreateProc(...)`  会根据提供的 URL 启动一个进程，最后返回一个进程句柄
 
 虽然 UE4 遵循 C++11 标准，但并没有使用 std::thread，而是自己实现了一套多线程机制，用法上很像 Java
 
@@ -109,8 +124,8 @@ TaskGraph 使用示例
   而这个任务完成后，又可能触发其他事件，其他事件再进一步触发其他任务
 
 ```c++
-// 1. 定义自己的 Task 类
-// 如 FTickFunctionTask、FReturnGraphTask，不需要继承，要实现如下几个静态函数
+// 1. 定义自己的 Task 类，如 FTickFunctionTask、FReturnGraphTask
+// 由于 Task Graph 由于采用的是模板匹配，因此不需要继承，但要实现如下几个静态函数
 class FMyTestTask
 {
 public:
@@ -355,7 +370,8 @@ void ULightComponent::SendRenderTransform_Concurrent() {
 
 
 
-### 1.2 UE4.22 及之后
+### 1.2 UE4.22 ~ 4.24
+
 UE4.23 支持**移动端**的动态实例化渲染
 **多个** CPU 上的 Mesh Batch 命令合并成一个，对应 GPU 的**一次** drawcall
 
@@ -500,14 +516,19 @@ Shader 的容器 **Shader Map**（存储运行时编译后的 shader 代码，�
 继承自 FRenderResource 在 UE4.27 的版本相比 4.21 版本减少了许多对象
 
 **Vertex Factory**：表示 Mesh 类型，它的一种子类只表示一种网格类型
-继承自 FRenderResource，
+继承自 FRenderResource，包含
 
-- 顶点着色器
-  顶点着色器的输入输出需要顶点工厂来表明数据的布局
-- 顶点工厂的参数和 RHI 资源
-  这些数据将从 C++ 层传入到顶点着色器中进行处理
-- 顶点缓冲和顶点布局
+- **顶点缓冲**（FVertexBuffer）
+  将 FVertexBuffer 转化为包含 FVertexBuffer 的 FVertexStreamComponent
+- **顶点缓冲布局**（FVertexElement）
+  将 FVertexStreamComponent 转化为 FVertexElement
+  再将 FVertexElement 的 TArray 转化为 FRHIVertexDeclaration
   通过顶点布局，我们可以自定义和扩展顶点缓冲的输入，从而实现定制化 Shader 代码
+- **顶点着色器**（FShader）
+  Shader 的 HLSL 代码含**顶点缓冲每个单元内部布局**（FVertexFactoryInput）
+  顶点着色器的输入输出需要顶点工厂来表明数据的布局
+- 顶点工厂的参数和 RHI 资源(FRHIUniformBuffer)
+  这些数据将从 C++ 层传入到顶点着色器中进行处理
 - 几何预处理
   顶点缓冲、网格资源、材质参数等等都可以在真正渲染前预处理它们
 
@@ -758,9 +779,33 @@ UE 的内置 Shader 文件在 `Engine\Shaders` 目录下
 
 ### 4.1 Shader 文件的内部结构
 
+以 BasePass 的 Shader 为例：
 
+```c
+// 【VS】BasePassVertexShader.usf 文件主要结构
+// cbuffer: constant buffer HLSL 使用的 buffer 类型
+cbuffer View {
+    float4x4 View_WorldToClip;
+    // ...
+}
 
+cbuffer Primitive {
+    float4x4 Primitive_LocalToWorld;
+    // ...
+}
 
+// GeometryCacheVertexFactory.ush
+// InputLayout: 声明顶点内存布局
+struct FVertexFactoryInput {
+    float4 Position : ATTRIBUTE0;
+    half3 TangentX  : ATTRIBUTE1;
+    half4 TangentZ  : ATTRIBUTE2;
+    float4 Color    : ATTRIBUTE3;
+    float2 MotionBlurData : ATTRIBUTE4;
+}
+
+void MainVS(FVertexFactoryInput Input, ...) { /** ... */ }
+```
 
 
 
