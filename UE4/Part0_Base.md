@@ -348,7 +348,7 @@ Unreal Build Tool 是 UE 自己的跨平台构建工具，它代替了传统的 
    将引擎内部使用的特定格式存储内容资源（如用 PNG 存储纹理）转换成打包平台下更节省内存或者性能更好的格式
 
 10. **打包项目**，使用 UE4Editor 
-   将项目打包成平台原生的分发格式
+      将项目打包成平台原生的分发格式
 
 11. 打补丁，使用 UE4Editor
       在最初的发布之后对其进行更新
@@ -842,14 +842,28 @@ UE4 的 GC 通过追踪 UObject 极其子类的标记状态来实现，其 GC �
 
 
 
+**FGCReferenceTokenStream**
+
+- 作用：解析当前**类 UClass** 中对所需对象的引用
+- 结构：存储了 `TArray<uint32> Tokens`，父类的 Tokens 会排在子类之前（考虑到 C++ 对象内存分配顺序 虚表、父类成员变量、子类成员变量）
+  其中 `uint32` 其实是一个同尺寸的 `FGCReferenceInfo` 对象，它包含
+  1. 引用对象类型标志 
+  2. 引用对象在当前对象内存分布的 Offset
+     方便通过 Offset 找到对象地址 = 对象指针地址 + 父类 Offset + 当前引用对象的 Offset
+  3. 从当前对象到引用对象的嵌套层数
+     `A->B->C` ，C 是 A 的引用对象，其嵌套层数为 2
+- 生成方法：从顶层父类开始逐个遍历 `UPROPERTY` 标记的成员变量，然后到子类继续遍历
+
+
+
 **标记流程**
 
 1. 标记所有<u>可回收</u>对象为**不可达**
-   使用 UE4 的 `ParallelFor` 来多线程标记**所有对象**
+   使用 UE4 的 `ParallelFor` 来多线程标记**所有对象**，收集必然可达的对象
    其中如果簇没有被对象引用，簇所有 `UObject` 对象引用都会被回收
-2. 检测并标记可回收对象是否可达
-   获取对象 `UClass` 类当前的 `ReferenceTokenStream` 类属性枚举值
-   如果是可达的类数据类型：在将当前在永久对象池 `PermanentPool` 中的对象记作可达对象
+2. **遍历对象引用网络**来标记对象是否可达
+   通过步骤 1 获取的必然可达对象，开始向后遍历对象引用的其他可达对象
+   获取对象 `UClass` 类当前的 `ReferenceTokenStream` 类的值作为标记来判断是否可达
 3. 删除没有被引用的簇（标记删除法）
 4. 删除 `FGCArrayPool` 中不可达的弱指针对象引用
 
@@ -858,9 +872,9 @@ UE4 的 GC 通过追踪 UObject 极其子类的标记状态来实现，其 GC �
 ### 4.3 增量清除 GC
 
 增量清除默认限制时间在 0.002 秒内清除标记为不可达的对象
-增量清楚全在 Gameplay 主线程里，流程如下
+增量清除全在 Gameplay 主线程里，流程如下
 
-1. 将要清除对象调用 `UObject::ConditionalBeginDestroy()`
+1. 将要清除对象调用 `UObject::ConditionalBeginDestroy()` 
 2. 给要清除的对象标记 `EInternalObjectFlags::HadReferenceKilled`
 3. 通知所有监听 GC 的代理对象
 4. 检测将要清除的对象是否已经准备好被销毁
@@ -933,6 +947,20 @@ public:
 
 
 
+## 6. UObject 的序列化和反序列化
+
+由于序列化（正向写入）和反序列化（反向读取）需要按照同样的方式进行，并且在反序列化时需要先有实例化对象在填充反序列化数据，UE 的序列化和反序列化都在函数 `void UObject::Serialize( FArchive& Ar )` 里
+
+序列化面临的问题：指针互相引用问题（序列化包 A，但是 A 里面有指针指向了 不需要序列化的包 B 内的对象）
+解决方法：UPackage 的序列化方法
+
+- 建立 Imports table
+  给当前 Package 的对象标记索引来代替对象地址，方便序列化时指针地址替换成索引
+- 建立 Exports table
+  给 Package 外部的对象标记索引来代替对象地址，方便序列化时包外部对象指针替换成索引
+
+
+
 
 
 # 引用
@@ -945,6 +973,7 @@ public:
 - [UE4 中的配置文件](https://zhuanlan.zhihu.com/p/150373398)
 - [深入研究虚幻 4 反射系统实现原理（一） - 风恋残雪 - 博客园 (cnblogs.com)](https://www.cnblogs.com/ghl_carmack/p/5701862.html)
 - [C++ 反射机制的实现_ freshman94 的博客-CSDN 博客_C++ 反射](https://blog.csdn.net/qq_22660775/article/details/89713867)
+- [UE4 GC机制解析（一）：GC信息收集](https://zhuanlan.zhihu.com/p/402403281)
 - [《InsideUE4》UObject（一）开篇 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/24319968)
 - [UE4 UObject 反射系列(一) Class 相关 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/75533335)
 - [Memory Management | UE4 Community Wiki](https://www.ue4community.wiki/memory-management-6rlf3v4i#garbage-collection)
