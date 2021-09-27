@@ -259,21 +259,21 @@ UWorld->ULevel->AActor->UActorComponent(UPrimitiveComponent)
 
 // Render Thread
 FSceneRenderer->FScene
-    		      ->TArray<FViewInfo>
+              ->TArray<FViewInfo>
 ```
 
 不同线程，同种数据的对应关系
 
-| Game Thread                                  | Render Thread                                          |
-| :------------------------------------------- | :----------------------------------------------------- |
-| UWorld                                       | FScene                                                 |
-| UPrimitiveComponent                          | FPrimitiveSceneProxy / FPrimitiveSceneInfo             |
-| -                                            | FSceneView / FViewInfo                                 |
-| ULocalPlayer                                 | FSceneViewState                                        |
-| ULightComponent                              | FLightSceneProxy / FLightSceneInfo                     |
-| FVertexStreamComponent                       | FVertexStream / FVertexElement                         |
-| UMaterial（父类 UMaterialInterface）         | FDefaultMaterialInstance（父类 FMaterialRenderProxy）  |
-| UMaterialInstance（父类 UMaterialInterface） | FMaterialInstanceResource（父类 FMaterialRenderProxy） |
+| Game Thread                                         | Render Thread                                                |
+| :-------------------------------------------------- | :----------------------------------------------------------- |
+| UWorld                                              | FScene                                                       |
+| UPrimitiveComponent：可渲染或拥有物理模拟的物体父类 | FPrimitiveSceneProxy：场景代理，镜像了 UPrimitiveComponent 的状态到渲染线程<br />FPrimitiveSceneInfo ：包含了 Primitive 的 Component 和 Proxy 的信息 |
+| -                                                   | FSceneView / FViewInfo                                       |
+| ULocalPlayer                                        | FSceneViewState                                              |
+| ULightComponent                                     | FLightSceneProxy / FLightSceneInfo                           |
+| FVertexStreamComponent                              | FVertexStream / FVertexElement                               |
+| UMaterial（父类 UMaterialInterface）                | FDefaultMaterialInstance（父类 FMaterialRenderProxy）        |
+| UMaterialInstance（父类 UMaterialInterface）        | FMaterialInstanceResource（父类 FMaterialRenderProxy）       |
 
 尝试跨线程操作数据，将会引发不可预料的结果
 有些对象作为线程间数据的传递者（FPrimitiveSceneProxy、FLightSceneProxy）会在**游戏线程**创建，在**渲染线程**执行，最后在**渲染线程**销毁
@@ -337,6 +337,10 @@ void ULightComponent::SendRenderTransform_Concurrent() {
 
 
 
+为了避免在不同批次静态 Mesh 绘制时使用多套渲染状态来回切换，UE 尽量让不同批次的绘制共享一套渲染状态（修改部分渲染状态参数）
+
+
+
 ## 1. Mesh 绘制流程总览
 
 基本的图形 API 调用流程
@@ -366,6 +370,8 @@ void ULightComponent::SendRenderTransform_Concurrent() {
 1. 遍历场景的所有经过了可见性测试的 FPrimitiveSceneProxy 对象
 2. 通过 FPrimitiveSceneProxy 收集不同的 FMeshBatch
 3. 通过不同的渲染 Pass 中遍历 FMeshBatch 生成 Pass 对应的 RHICommandList 命令
+   <u>FMeshBatchElement</u>：单个网格模型的数据，包含顶点、索引、UniformBuffer及各种标识等
+   <u>FMeshBatch</u>：存着一组 FMeshBatchElement 的数据，拥有相同的材质和顶点缓冲
 4. 根据 RHICommandList 的命令调用 图形 API 指令
 
 
@@ -380,6 +386,8 @@ UE4.23 支持**移动端**的动态实例化渲染
    在这一步缓存**静态网格**的绘制命令（缓存并重用 FMeshBatch，动态路径不会缓存，缓存不会改变资源的生命周期）
 3. **通过不同的渲染 Pass 在 FMeshPassProcessor 中遍历 FMeshBatch 生成 FMeshDrawCommand**（**R**ender **D**ependency **G**raph）
    在这一步缓存**静态网格**的绘制命令（缓存并重用 FMeshDrawCommand，动态路径不会缓存，缓存不会改变资源的生命周期，不能依赖依 FSceneView）
+   <u>FMeshDrawCommand</u>：一个 Pass Draw Call 的所有状态和数据，如 shader 绑定、顶点数据、索引数据、PSO 缓存等
+   <u>FMeshPassProcessor</u>：网格渲染 Pass 处理器，将 FMeshBatch 对象转成一个或多个 FMeshDrawCommand
 4. 通过不同的渲染 Pass 中生成的 FMeshDrawCommand 转换成对应的 RHICommandList 命令
 5. 根据 RHICommandList 的命令调用 图形 API 指令
 
@@ -406,7 +414,7 @@ UE4.23 支持**移动端**的动态实例化渲染
 
 
 
-UE并没有像 Unity 那样的动态合批功能，只有编辑器阶段手动合网格
+UE 并没有像 Unity 那样的动态合批功能，只有编辑器阶段手动合网格
 
 - 合并的网格不能撤销，需要**谨慎操作**
 - 合并的网格可以被导出到其他三维软件再次编辑
@@ -485,17 +493,24 @@ UE并没有像 Unity 那样的动态合批功能，只有编辑器阶段手动�
 
 材质是多个 Shader 和它们所需要的资源和参数的组合，材质系统建立于 Shader 系统之上
 
-## 1. 缓存对象
+## 1. 基本数据
 
-通过 Shader 关联容器 Shader Map（统称）可知一组最复杂的关联数据由 FMaterial、FVertexFactoryType、EMeshPass 类型 三个方面构成
+FRenderResource 对象内部会管理对应 FRHIResource 对象的声明周期
+FRHIResource 封装了各个平台图形 API 对应资源对象的实现
 
-![](./images/ShaderContainer.png)
+|                | RenderResource 的外部封装                                    | FRenderResource                                              | FRHIResource                                                 |
+| -------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 顶点缓冲       | FVertexStreamComponent，封装记录 FVertexBuffer 内部元素存储结构信息（可用来生成 FVertexElement），不控制其生命周期 | FVertexBuffer<br />FVertexElement 记录顶点缓冲内存布局       | FRHIVertexBuffer<br />FRHIVertexDeclaration 顶点结构描述根据 FVertexElement  数据转化而来 |
+| 顶点索引缓冲   | 无封装，通过继承 FIndexBuffer 实现功能扩展                   | FIndexBuffer                                                 | FRHIIndexBuffer                                              |
+| Shader参数缓冲 | FViewUniformShaderParameters，是模板 **TUniformBuffer** 的实例化，既包含 TUniformBuffer 数据，也包含数据的内存布局说明 FUniformBufferStruct | **TUniformBuffer**<br />FUniformBufferStruct  记录 TUniformBuffer 的内存布局，控制 FRHIUniformBufferLayout  的生命周期 | **FRHIUniformBuffer**（Constant Buffer）<br />FRHIUniformBufferLayout 记录传入 Shader 的普通 Vector/ Matrix 数据 和 纹理资源 数据的内存布局说明 |
+| Shader         | 无封装，通过继承 FShader 实现功能扩展                        | FShader 内含<br />- 多个渲染管线阶段所需的 RHI Shader 资源<br />- **FVertexFactoryType** 和 FVertexFactoryParameterRef<br />- FShaderUniformBufferParameter  通过 FUniformBufferStruct  记录 Uniform 的内存布局 | FRHIShader 有 Vertex、Pixel、Hull、Domain、Geometry、Compute 多个 Shader 分类 |
+| 纹理           | UTexture（UTexture2D）持有继承自 FTexture 的 FTextureResource<br />内含 FTexturePlatformData 存储不同硬件上的 CPU 数据 | FTexture                                                     | FRHITexture                                                  |
 
-Shader 的容器 **Shader Map**（存储运行时编译后的 shader 代码，最后由 FMaterialResource 持有）
+**FVertexFactory：**表示 Mesh 类型，它的一种子类只表示一种网格类型，对应 `.usf` 的 FVertexFactoryInput 数据类型
+继承自 FRenderResource，主要用来
 
-- FGlobalShaderMap：保存并管理着所有编译好的 FGlobalShader 代码，在 `FEngineLoop::PreInitPreStartupScreen` 初始化完成
-- FMaterialShaderMap：存储和管理着一组 FMaterialShader 实例的对象（Mesh 无关 Shader，种类少）
-- FMeshMaterialShaderMap：存储和管理一组 FMeshMaterialShader 实例的对象（Mesh 相关 Shader，种类多）
+1. 计算顶点数据：顶点从 local space 变换到 world space
+2. 合并 Mesh（通过 FVertexStreamComponent，生成 FVertexElement，并收集多个 FVertexElement）
 
 
 
@@ -509,28 +524,6 @@ Shader 的容器 **Shader Map**（存储运行时编译后的 shader 代码，�
 
 - 早期的 UE 用 FShaderCache 来缓存
 - UE4.26 用 FShaderPipelineCache 来代替 FShaderCache 缓存
-
-
-
-**Uniform Buffer**：最底层的是 RHI 层的 FRHIUniformBuffer，封装了各种图形 API 的统一缓冲区（也叫 Constant Buffer）
-继承自 FRenderResource 在 UE4.27 的版本相比 4.21 版本减少了许多对象
-
-**Vertex Factory**：表示 Mesh 类型，它的一种子类只表示一种网格类型
-继承自 FRenderResource，包含
-
-- **顶点缓冲**（FVertexBuffer）
-  将 FVertexBuffer 转化为包含 FVertexBuffer 的 FVertexStreamComponent
-- **顶点缓冲布局**（FVertexElement）
-  将 FVertexStreamComponent 转化为 FVertexElement
-  再将 FVertexElement 的 TArray 转化为 FRHIVertexDeclaration
-  通过顶点布局，我们可以自定义和扩展顶点缓冲的输入，从而实现定制化 Shader 代码
-- **顶点着色器**（FShader）
-  Shader 的 HLSL 代码含**顶点缓冲每个单元内部布局**（FVertexFactoryInput）
-  顶点着色器的输入输出需要顶点工厂来表明数据的布局
-- 顶点工厂的参数和 RHI 资源(FRHIUniformBuffer)
-  这些数据将从 C++ 层传入到顶点着色器中进行处理
-- 几何预处理
-  顶点缓冲、网格资源、材质参数等等都可以在真正渲染前预处理它们
 
 
 
@@ -564,6 +557,13 @@ UE4 Edtior 中的 Transform 设置面板可以设置当前的变换是 **Local (
 
 
 
+**UMeshComponent**：抽象父类，继承自 UPrimitiveComponent，其子类有：
+
+- <u>UStaticMeshComponent</u>：静态网格组件，主要表示单个不可分割的可被复用的渲染数据，其子类多用于合并渲染数据，有
+  - UInstancedStaicMeshComponent：代表多个 Mesh 组件合并后的一个静态 Mesh 对象整体
+  - UHierarchicalInstancedStaticMeshComponent：代表多个 Mesh 组件基于分层实现的静态 Mesh 对象整体
+- <u>USkeletalMeshComponent</u>：骨骼驱动网格组件
+
 
 
 ### 2.2 Material
@@ -571,6 +571,7 @@ UE4 Edtior 中的 Transform 设置面板可以设置当前的变换是 **Local (
 **UMaterial**：对应着在材质编辑器编辑的 uasset 资源文件，继承自 UMaterialInterface
 UMaterialInterface 继承自 UObject 其内部包含物理材质 UPhysicalMaterial，内部属性和编辑器里的属性面板一致
 一般作为母材质，来描述一类材质（<u>其子材质对象为 UMaterialInstance，只是参数上有区别</u>）
+UMaterial 内包含 FMaterialResource 的数组，可通过**不同的硬件条件 (FeatureLevel) 和不同的材质质量 (MateialQualityLevel)** 获取材质资源
 
 **UMaterialInstance**：对象的构造依赖 UMaterial 对象，只能覆盖 UMaterial 的部分参数，继承自 UMaterialInterface
 UMaterialInstance 的母材质可以有多层，其最顶层一定是 UMaterial，中间都是 UMaterialInstance
@@ -584,17 +585,13 @@ UMaterialInstance 的母材质可以有多层，其最顶层一定是 UMaterial�
   
 
 **FMaterialResource**：继承自 FMaterial，用于将材质数据传递到渲染器（此时的资源对象已经**足够具体**有对应 Pass 的具体参数）
-不仅仅包含 UMaterial 的材质信息，还包含当前渲染 Pass 需要的 Vertex Factory、ShaderMap、ShaderPipelineline、FShader 及各种着色器参数等
+不仅仅包含 UMaterial 的材质信息，还包含当前渲染 Pass 需要的 Vertex Factory、ShaderMap、ShaderPipelineline、RenderStates、FShader 及各种着色器参数等
 
 ![](./images/Material.jpg)
 
-**材质编辑器的材质节点**
 
 
-
-
-
-### 2.3 Shader 数据
+### 2.3 Shader
 
 **FShader**：已经编译好的着色器代码和它所需资源的绑定
 存储着 Shader 关联的绑定参数、顶点工厂、编译后的各类资源等数据，并提供了编译器修改和检测接口
@@ -682,6 +679,9 @@ class FDeferredLightPS : public FGlobalShader {
 
 ### 2.4 Shader 变种
 
+由于着色器不存在动态链接的概念，只要一部分函数的改变，最终都会产生不一样的着色器原始代码
+因此根据不一样的渲染阶段，渲染数据，同一个 HLSL Shader 可能会有很多着色器，或者说很多变种
+
 Shader 变种不会被存储在开发文件中，在根据平台打包 Cook 的时候生成
 过多的 Shader 变种会导致包体积的膨胀，增加内存占用
 
@@ -695,25 +695,42 @@ Shader 变种不会被存储在开发文件中，在根据平台打包 Cook 的�
 
 
 
+### 2.5 ShaderMap
+
+通过 Shader 关联容器 Shader Map（统称）可知一组最复杂的关联数据由 FMaterial、FVertexFactoryType、EMeshPass 类型 三个方面构成
+
+![](./images/ShaderContainer.png)
+
+Shader 的容器 **Shader Map**（存储运行时编译后的 shader 代码，最后由 FMaterialResource 持有）
+
+- FGlobalShaderMap：保存并管理着所有编译好的 FGlobalShader 代码，在 `FEngineLoop::PreInitPreStartupScreen` 初始化完成
+- FMaterialShaderMap：存储和管理着一组 FMaterialShader 实例的对象（Mesh 无关 Shader，种类少）
+- FMeshMaterialShaderMap：存储和管理一组 FMeshMaterialShader 实例的对象（Mesh 相关 Shader，种类多）
+
+
+
 
 
 ## 3. 编译流程
 
 材质和 Shader 的编译都是一个**离线的过程**，一般在项目启动／打包时进行
 
-**编译 Material**（Cook 时）
-在材质编辑器中，每个材质节点 UMaterialGraphNode 都有一个 UMaterialExpression（表达式）成员实例
-而多个 UMaterialGraphNode 存放在 UMaterialGraph 中，最终由 UMaterial 包含 UMaterialGraph 的信息
-流程（自定义 C++ 材质时，就需要根据编译流程将对应的 C++ 对象都实现）
+**编译 Material**
 
-1. FMaterial 开始不断的序列化内部 ShaderMap 数据
-2. FHLSLMaterialTranslator 通过 MaterialTemplate.ush 编译材质
-3. 编译后的 Shader 代码保存到 FMaterialShaderMap 缓存起来，防止重复编译 
+1. FHLSLMaterialTranslator 通过 MaterialTemplate.ush 编译材质
+   材质编辑器的节点图 **UMaterialGraph** 生成<u>部分</u> HLSL 代码（FString 的 Material.usf 文件）添加到编译环境中
+   在材质编辑器中，每个材质节点 **UMaterialGraphNode** 都有一个 **UMaterialExpression**（表达式）成员实例
+   而多个 UMaterialGraphNode 存放在 **UMaterialGraph** 中，最终由 UMaterial 包含 UMaterialGraph 的信息
+   流程（自定义 C++ 材质时，就需要根据编译流程将对应的 C++ 对象都实现）
+   <u>编辑器里的材质函数</u>：最终编译时不会生成一个 HLSL 函数，而是直接展开生成代码字符串
+2. FMaterial 开始不断的创建内部 ShaderMap 数据
+3. 跟据对应的 FShaderUniformBufferParameter 、管线配置（混合模式，光照模式）、所需顶点工厂类型编译多种 Shader
+4. 编译后的 Shader 代码保存到 FMaterialShaderMap 缓存起来，防止重复编译 
    材质编辑器之中是可以查看填充 MaterialTemplate 之后的各个目标平台代码（UEEditor / Window / Shader code / HLSL code）
 
 
 
-**编译 Shader**（Cook 时）
+**编译 Shader**
 UE4 为了方便跨平台编译，基于[Mesa GLSL parser and IR](https://www.mesa3d.org/) 造了个自己的轮子 HLSLCC（HLSL Cross Compiler）
 通过**输入 HLSL 源码**，会先转成 MCPP，然后转换成各种 shader language 的源代码
 
@@ -740,6 +757,8 @@ Shader 的**运行时编译**一般产生在准备加载场景时为了不在内
 
 1. 通过运行时预处理所有可能用到的 Shader 变种，记录到列表中
 2. 在加载场景时进行 Shader 编译（指生成 Shader Program）
+
+
 
 
 
