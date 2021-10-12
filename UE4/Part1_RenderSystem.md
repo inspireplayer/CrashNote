@@ -293,8 +293,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 void FScene::AddPrimitive(UPrimitiveComponent* p) {
     p->CreateSceneProxy();
 }
-    
-    
+
 // 数据更新：为了高效，游戏更新（Tick）和渲染更新（遍历场景）是异步的，并不同时进行
 // 在 UWorld 的 Tick 里，遍历所有可见的 Actor (这里用 UActorComponent 的子类 ULightComponent 来举例)
 void ULightComponent::SendRenderTransform_Concurrent() {
@@ -477,19 +476,7 @@ UE 并没有像 Unity 那样的动态合批功能，只有编辑器阶段手动�
 
 
 
-# 四、UE4 渲染技巧
-
-## 1. 光源
-
-
-
-## 2. 阴影
-
-
-
-
-
-# 五、UE4 材质系统
+# 四、UE4 材质系统
 
 材质是多个 Shader 和它们所需要的资源和参数的组合，材质系统建立于 Shader 系统之上
 
@@ -500,7 +487,7 @@ FRHIResource 封装了各个平台图形 API 对应资源对象的实现
 
 |                | RenderResource 的外部封装                                    | FRenderResource                                              | FRHIResource                                                 |
 | -------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 顶点缓冲       | FVertexStreamComponent，封装记录 FVertexBuffer 内部元素存储结构信息（可用来生成 FVertexElement），不控制其生命周期 | FVertexBuffer<br />FVertexElement 记录顶点缓冲内存布局       | FRHIVertexBuffer<br />FRHIVertexDeclaration 顶点结构描述根据 FVertexElement  数据转化而来 |
+| 顶点缓冲       | FVertexStreamComponent，封装记录 FVertexBuffer 内部元素存储结构信息（可用来生成 FVertexElement），不控制其生命周期 | FVertexBuffer<br />FVertexElement 记录顶点缓冲内存布局<br />FStaticMeshInstanceBuffer 本质还是 VertexBuffer 只是服务于对应业务的类型 | FRHIVertexBuffer<br />FRHIVertexDeclaration 顶点结构描述根据 FVertexElement  数据转化而来<br />FRHIShaderResourceView 不同硬件平台的多种内存类型的统一称呼 |
 | 顶点索引缓冲   | 无封装，通过继承 FIndexBuffer 实现功能扩展                   | FIndexBuffer                                                 | FRHIIndexBuffer                                              |
 | Shader参数缓冲 | FViewUniformShaderParameters，是模板 **TUniformBuffer** 的实例化，既包含 TUniformBuffer 数据，也包含数据的内存布局说明 FUniformBufferStruct | **TUniformBuffer**<br />FUniformBufferStruct  记录 TUniformBuffer 的内存布局，控制 FRHIUniformBufferLayout  的生命周期 | **FRHIUniformBuffer**（Constant Buffer）<br />FRHIUniformBufferLayout 记录传入 Shader 的普通 Vector/ Matrix 数据 和 纹理资源 数据的内存布局说明 |
 | Shader         | 无封装，通过继承 FShader 实现功能扩展                        | FShader 内含<br />- 多个渲染管线阶段所需的 RHI Shader 资源<br />- **FVertexFactoryType** 和 FVertexFactoryParameterRef<br />- FShaderUniformBufferParameter  通过 FUniformBufferStruct  记录 Uniform 的内存布局 | FRHIShader 有 Vertex、Pixel、Hull、Domain、Geometry、Compute 多个 Shader 分类 |
@@ -568,12 +555,14 @@ UE4 Edtior 中的 Transform 设置面板可以设置当前的变换是 **Local (
 
 ### 2.2 Material
 
-**UMaterial**：对应着在材质编辑器编辑的 uasset 资源文件，继承自 UMaterialInterface
-UMaterialInterface 继承自 UObject 其内部包含物理材质 UPhysicalMaterial，内部属性和编辑器里的属性面板一致
+**UMaterial**：继承自 <u>UMaterialInterface</u>（继承自 UObject ）
+对应着在材质编辑器编辑的 uasset 资源文件
+其内部包含物理材质 UPhysicalMaterial，内部属性和编辑器里的属性面板一致
 一般作为母材质，来描述一类材质（<u>其子材质对象为 UMaterialInstance，只是参数上有区别</u>）
 UMaterial 内包含 FMaterialResource 的数组，可通过**不同的硬件条件 (FeatureLevel) 和不同的材质质量 (MateialQualityLevel)** 获取材质资源
 
-**UMaterialInstance**：对象的构造依赖 UMaterial 对象，只能覆盖 UMaterial 的部分参数，继承自 UMaterialInterface
+**UMaterialInstance**：继承自 <u>UMaterialInterface</u>
+对象的构造依赖 UMaterial 对象，只能覆盖 UMaterial 的部分参数
 UMaterialInstance 的母材质可以有多层，其最顶层一定是 UMaterial，中间都是 UMaterialInstance
 
 - 子类 **UMaterialInstanceConstant**：固定材质实例，用于编辑器预先创建和编辑好的材质实例资源
@@ -584,7 +573,7 @@ UMaterialInstance 的母材质可以有多层，其最顶层一定是 UMaterial�
 
   
 
-**FMaterialResource**：继承自 FMaterial，用于将材质数据传递到渲染器（此时的资源对象已经**足够具体**有对应 Pass 的具体参数）
+**FMaterialResource**：继承自 <u>FMaterial</u>，用于将材质数据传递到渲染器（此时的资源对象已经**足够具体**有对应 Pass 的具体参数）
 不仅仅包含 UMaterial 的材质信息，还包含当前渲染 Pass 需要的 Vertex Factory、ShaderMap、ShaderPipelineline、RenderStates、FShader 及各种着色器参数等
 
 ![](./images/Material.jpg)
@@ -718,11 +707,11 @@ Shader 的容器 **Shader Map**（存储运行时编译后的 shader 代码，�
 **编译 Material**
 
 1. FHLSLMaterialTranslator 通过 MaterialTemplate.ush 编译材质
-   材质编辑器的节点图 **UMaterialGraph** 生成<u>部分</u> HLSL 代码（FString 的 Material.usf 文件）添加到编译环境中
+   材质编辑器的节点图 **UMaterialGraph** 生成<u>部分</u> HLSL 代码（FString 的 Material.usf 文件，**只有函数**）添加到编译环境中
    在材质编辑器中，每个材质节点 **UMaterialGraphNode** 都有一个 **UMaterialExpression**（表达式）成员实例
    而多个 UMaterialGraphNode 存放在 **UMaterialGraph** 中，最终由 UMaterial 包含 UMaterialGraph 的信息
    流程（自定义 C++ 材质时，就需要根据编译流程将对应的 C++ 对象都实现）
-   <u>编辑器里的材质函数</u>：最终编译时不会生成一个 HLSL 函数，而是直接展开生成代码字符串
+   <u>编辑器里的材质函数</u>：主要是为了加速材质编译，最终编译时不会生成一个 HLSL 函数，而是直接展开生成代码字符串
 2. FMaterial 开始不断的创建内部 ShaderMap 数据
 3. 跟据对应的 FShaderUniformBufferParameter 、管线配置（混合模式，光照模式）、所需顶点工厂类型编译多种 Shader
 4. 编译后的 Shader 代码保存到 FMaterialShaderMap 缓存起来，防止重复编译 
@@ -730,7 +719,7 @@ Shader 的容器 **Shader Map**（存储运行时编译后的 shader 代码，�
 
 
 
-**编译 Shader**
+**编译 Shader**（主要编译的是拼接 Shader 字符串代码，以及其需要的材质的组合）
 UE4 为了方便跨平台编译，基于[Mesa GLSL parser and IR](https://www.mesa3d.org/) 造了个自己的轮子 HLSLCC（HLSL Cross Compiler）
 通过**输入 HLSL 源码**，会先转成 MCPP，然后转换成各种 shader language 的源代码
 
@@ -750,7 +739,7 @@ UE4 为了方便跨平台编译，基于[Mesa GLSL parser and IR](https://www.me
 
 
 
-**编译 Shader**（运行时）
+**编译 Shader**（运行时，主要是根据 Shader 字符代码实时生成不同平台的 GPU 执行文件）
 
 Shader 还有一个阶段由于图形驱动的限制只能放到运行时编译
 Shader 的**运行时编译**一般产生在准备加载场景时为了不在内存中缓存 Shader Code，避免运行时卡顿
@@ -762,7 +751,7 @@ Shader 的**运行时编译**一般产生在准备加载场景时为了不在内
 
 
 
-## 4. 文件存储
+## 4. 数据传递（从游戏逻辑到 Shader 文件）
 
 UE 的内置 Shader 文件在 `Engine\Shaders` 目录下
 
@@ -793,15 +782,47 @@ UE 的内置 Shader 文件在 `Engine\Shaders` 目录下
   双向反射分布函数模块，提供了很多基础光照算法及相关辅助接口
 - **ShadingModels.ush**
   着色模型以及光照计算相关的类型和辅助接口
+- **MaterialTemplate.ush**
+  材质蓝图编辑器的节点模板，给材质蓝图编辑器提供系统节点功能
 
 
 
-### 4.1 Shader 文件的内部结构
+### 4.1 材质参数
+
+作用：在不同的阶段修改，会有不同的功能
+
+1. **编译**时修改参数
+   母材质中使用参数作为一个可以让设计人员修改的标量，让母材质具有更好的扩展性
+2. **运行**时修改参数
+   游戏运行时根据游戏逻辑向材质传递数据，让材质变化更灵活
+
+
+
+创建参数：以下方法创建的材质参数类型都一样，只是创建方法不同
+
+1. 直接创建
+   在 UEEditor 中，右键输入 Parameter，创建材质参数
+2. 从现有的材质节点转换
+   在 UEEditor 中，右键材质节点，中选择 **转换为参数（Convert to Parameter）**选项（如果能转换就会有）创建材质参数
+
+
+
+获取材质参数：
+
+```c
+// 运行时修改：只能用在 Dynamic 材质实例
+UMaterialInstanceDynamic* MaterialInstance = UMaterialInstanceDynamic::Create(TemplateMaterial, nullptr);
+MaterialInstance->SetScalarParameterValue(TEXT("Roughness"), Roughness);
+```
+
+
+
+### 4.2 Shader 文件的内部结构
 
 以 BasePass 的 Shader 为例：
 
-```c
-// 【VS】BasePassVertexShader.usf 文件主要结构
+```glsl
+// BasePassVertexShader.usf 文件主要结构
 // cbuffer: constant buffer HLSL 使用的 buffer 类型
 cbuffer View {
     float4x4 View_WorldToClip;
@@ -813,22 +834,48 @@ cbuffer Primitive {
     // ...
 }
 
-// GeometryCacheVertexFactory.ush
+// LocalVertexFactory.ush
 // InputLayout: 声明顶点内存布局
+// 同样的 FVertexFactoryInput 根据不同的绘制需求，在不同的 [*]VertexFactory.ush 有着不同的结构定义
 struct FVertexFactoryInput {
     float4 Position : ATTRIBUTE0;
     half3 TangentX  : ATTRIBUTE1;
     half4 TangentZ  : ATTRIBUTE2;
     float4 Color    : ATTRIBUTE3;
-    float2 MotionBlurData : ATTRIBUTE4;
+	// ...
 }
 
-void MainVS(FVertexFactoryInput Input, ...) { /** ... */ }
+// VS 里会有多次结构体的转换
+// 1. 在 /Engine/Shaders/Private/InstancedStereo.ush 声明
+static ViewState ResolvedView;
+
+// MainVS 会由不同的 VS 输入和 VS 输出组成
+void MainVS(FVertexFactoryInput Input, out FMobileShadingBasePassVSOutput Output) {
+    // 2. 自定义函数，传入了本次绘制一个 view 需要的所有必要数据
+    ResolvedView = ResolveView()
+    // ...
+    // 3. 自定义函数，FVertexFactoryInput -> FVertexFactoryIntermediates 结构
+    FVertexFactoryIntermediates VFIntermediates = GetVertexFactoryIntermediates_NoTangent(Input);
+    // ...
+    // 4. 计算自定义的 UV 纹理
+    GetMaterialCustomizedUVs(FMaterialVertexParameters, CustomizedUVs);
+    // ... 各种顶点空间转换 .. 略 ...
+    // 5. 自定义函数，FVertexFactoryIntermediates -> FMaterialVertexParameters
+    FMaterialVertexParameters VertexParameters = GetMaterialVertexParameters(
+        Input,              // FVertexFactoryInput
+        VFIntermediates,    // FVertexFactoryIntermediates
+        WorldPosition.xyz,
+        TangentToLocal
+    );
+    // ...
+    // 6. 自定义函数，FMaterialVertexParameters -> FVertexFactoryInterpolantVSToPS
+    Output.FactoryInterpolants = VertexFactoryGetInterpolantsVSToPS(Input, VFIntermediates, VertexParameters);
+}
 ```
 
 
 
-### 4.2 Shader 文件和 C++ 对象建立联系
+### 4.3 Shader 文件和 C++ 对象建立联系
 
 ```c++
 // 1. 新建着色器文件 iShaderFile.usf
@@ -844,7 +891,7 @@ class FMyTestPS : public FGlobalShader
 {
     DECLARE_EXPORTED_SHADER_TYPE(FMyTestPS, Global, /*MYMODULE_API*/);
 
-    FShaderParameter MyColorParameter;
+    FShaderParameter MyColorParameter;// 材质参数
 
     FMyTestPS() { }
     FMyTestPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
@@ -855,9 +902,24 @@ class FMyTestPS : public FGlobalShader
     }
 }
 
-// 4. 注册着色器类型
+// 4. 定义着色器类型(C++ 到 HLSL 的数据入口)
 //    建立着色器文件 iShaderFile.usf 到 着色入口函数 MainPS 与频率/着色阶段（SF_Pixel）的映射关系
 IMPLEMENT_SHADER_TYPE(, FMyTestPS, TEXT("iShaderFile"), TEXT("MainPS"), SF_Pixel);
+
+// 5. 定义传入 Vertex Shader 的 FVertexFactoryInput 数据类型
+IMPLEMENT_VERTEX_FACTORY_TYPE(
+    // FactoryClass
+    FLocalVertexFactory, 
+    
+    // ShaderFilename 有多个 [*]VertexFactory.ush 文件根据不同需要都定义了 FVertexFactoryInput 类型
+    “/Engine/Private/LocalVertexFactory.ush”,
+    
+    true, // bUsed With Materials
+    true, // bSupports Static Lighting
+    true, // bSupports Dynamic Lighting
+    true, // bPrecise PreWorldPos
+    true  // bSupports Position Only
+);
 ```
 
 
@@ -888,9 +950,9 @@ IMPLEMENT_SHADER_TYPE(, FMyTestPS, TEXT("iShaderFile"), TEXT("MainPS"), SF_Pixel
 
 **通过 UE4 控制台输入调试 Shader**
 
-- 控制台输入 `RecomplieShaders` 命令可以重新编译 Shader，这样就不需要通过重启 UE 编辑器来重新编译 Shader 了
+- 控制台输入 `RecompileShaders *` 命令可以重新编译 Shader，这样就不需要通过重启 UE 编辑器来重新编译 Shader 了
 - [通过在 VisualStudio 配置后，在通过 ShaderCompileWorker 的命令来调试 Shader](https://docs.unrealengine.com/4.26/zh-CN/ProgrammingAndScripting/Rendering/ShaderDevelopment/ShaderCompileProcess/)
-- 可以[使用 Render doc 来调试游戏](https://blog.csdn.net/kuangben2000/article/details/106867601)
+- 可以[使用 Render doc 来调试游戏](https://blog.csdn.net/kuangben2000/article/details/106867601)，通过在 Render doc 的 Mesh View 数据项里右键，可以逐行调试实时生成的 HLSL shader 源代码
   UE4 的项目可以命令行参数 `-opengl -featureleveles31`  在 Windows 系统上**强制使用 OpenGL 渲染**，并且说明使用 OpenGL ES 3.1 版本渲染
   ![](./images/RenderDoc.png)
 
@@ -974,6 +1036,16 @@ IMPLEMENT_SHADER_TYPE(, FMyTestPS, TEXT("iShaderFile"), TEXT("MainPS"), SF_Pixel
 
 
 
+# 五、UE4 渲染技巧
+
+## 1. 光源
+
+
+
+## 2. 阴影
+
+
+
 
 
 # 引用
@@ -994,4 +1066,6 @@ IMPLEMENT_SHADER_TYPE(, FMyTestPS, TEXT("iShaderFile"), TEXT("MainPS"), SF_Pixel
 - [着色器开发 | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.26/zh-CN/ProgrammingAndScripting/Rendering/ShaderDevelopment/)
 - [新建全局着色器为插件 | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.26/zh-CN/ProgrammingAndScripting/Rendering/ShaderInPlugin/QuickStart/)
 - [启用和编译 PSO 缓存 | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.27/zh-CN/SharingAndReleasing/PSOCaching/EnablingBuildingPSOCaching/)
+- [编写材质参数 | 虚幻引擎文档 (unrealengine.com)](https://docs.unrealengine.com/4.27/zh-CN/RenderingAndGraphics/Materials/HowTo/Making_Parameters/)
+- [UE4加一个自定义材质的接口（4.22）](https://zhuanlan.zhihu.com/p/76258662)
 
