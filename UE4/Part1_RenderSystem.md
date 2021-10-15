@@ -934,17 +934,15 @@ IMPLEMENT_VERTEX_FACTORY_TYPE(
 
 - **r.ShaderDevelopmentMode**=1
   获得关于着色器编译的详细日志和错误重试的机会
+- **r.Shaders.Optimize**=0
+  禁用着色器优化，使得 shader 的<u>调试信息被保留</u>
+- **r.Shaders.KeepDebugInfo**=1
+  <u>保留调试信息</u>，配合 **r.Shaders.Optimize** 使用（方便查看源码）
+- **r.Shaders.SkipCompression**=1
+  忽略 shader 压缩，省调试时间
 - **r.DumpShaderDebugInfo**=1
   将编译的所有着色器的文件保存到磁盘 `ProjectName/Saved/ShaderDebugInfo` 目录
   包含源文件、预处理后的版本、一个批处理文件（用于使用编译器等效的命令行选项来编译预处理版本）
-- **r.Shaders.Optimize**=0
-  禁用着色器优化，使得 shader 的调试信息被保留
-- **r.DumpShaderDebugShortNames**=1
-  保存的 Shader 路径将被精简
-- **r.Shaders.KeepDebugInfo**=1
-  保留调试信息，配合 RenderDoc 等截帧工具时特别有用
-- **r.Shaders.SkipCompression**=1
-  忽略 shader 压缩，省调试时间
 
 
 

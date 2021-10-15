@@ -7,7 +7,7 @@
 ## 1. 环境配置
 
 1. **软件配置**
-   安装 Visual Studio 2017，Git
+   安装 Visual Studio 2017（或者用 [Rider for Unreal Engine](https://www.jetbrains.com/lp/rider-unreal/)），Git
    由于 win 对于文件路径限制在 255 字符以内，建议将 UE 的源码直接放在**磁盘根目录下**
    
 2. **平台依赖软件包准备**
@@ -311,7 +311,32 @@ Unreal Build Tool 是 UE 自己的跨平台构建工具，它代替了传统的 
    会先调用 Unreal Header Tool 命令行程序，在调用相关的平台编译器
 
 5. 调试项目中的 C++ 代码，使用 Visual Studio 打断点查看
+   UE4 Editor console 命令行函数调试（游戏运行时按 `~` 出现的 console），方便调试游戏复现场景
 
+   ```c++
+   // 命令行里使用：DemoTest 调用 Trigger Function
+   static FAutoConsoleCommand CVarStaticCommand(
+       TEXT("DemoTest"), 	// The name of this CMD
+       TEXT("Helper text for this CMD"),
+       FConsoleCommandWithArgsDelegate::CreateStatic(
+           [](const TArray<FString>& Platforms)
+           {
+               UE_LOG(LogTemp, Warning, TEXT("Trigger Function"));
+           }
+       )
+   );
+   
+   // 从简单变量衍生而来，只用于 int,string,bool,在 TextureStreamingHelpers.cpp
+   TAutoConsoleVariable<int32> CVarSetTextureStreaming(
+   	TEXT("r.TextureStreaming"),
+   	1,
+   	TEXT("Allows to define if texture streaming is enabled, can be changed at run time.\n")
+   	TEXT("0: off\n")
+   	TEXT("1: on (default)"),
+   	ECVF_Default | ECVF_RenderThreadSafe
+   );
+   ```
+   
 6. 调试项目，使用 UE4Editor 查看项目中 log 信息
    在 UE4Editor 的 输出日志窗口、消息日志窗口 查看 log 信息
    在 UE4Editor 的 运行游戏画面窗口，查看 `UEngine::AddOnScreenDebugMessage` 的 log 信息
@@ -361,14 +386,21 @@ Unreal Build Tool 是 UE 自己的跨平台构建工具，它代替了传统的 
 
 **开发流程**
 
-1. 策划设计（策划提需求）
-2. 主程分析和分配需求
-3. 开发联调，方案审核
-4. 策划配置游戏数据和程序联调
-5. 策划自测游戏
-6. 策划通知程序合并分支
-7. QA 测试
-8. 版本发布
+1. <u>策划设计</u>（策划提需求）
+   策划：制作人、主策、数值、关卡、系统、剧情、文案
+2. <u>主程分析和分配需求</u>
+   程序：主程、引擎、服务器、客户端、工具、TA（工具和服务，**可外包**）
+   美术：主美、原画、2D UI、角色、动作、场景、特效（原画、模型、动作，**可外包**）
+3. <u>开发联调，方案审核</u>
+4. <u>策划配置游戏数据和程序联调</u>
+5. <u>策划自测游戏</u>
+   逻辑测试
+6. <u>策划通知程序合并分支</u>
+   音频：作曲、音效、录音（**可外包**全部）
+7. <u>QA 测试</u>
+   测试开发
+8. <u>版本发布</u>
+   运营：市场、渠道、客服
 
 
 
@@ -983,4 +1015,9 @@ public:
 - [深入研究虚拟机之垃圾收集（GC）算法实现 - 牧涛 - 博客园 (cnblogs.com)](https://www.cnblogs.com/superjt/p/5946059.html)
 - [UE4 垃圾回收 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/341137213)
 - [UE4 性能分析和优化](https://zhuanlan.zhihu.com/p/150110172)
+- [UE4 使用自定义的 Console Command](https://blog.csdn.net/maxiaosheng521/article/details/107788415)
+- [[UE4]console命令行常用命令(command)](https://dawnarc.com/2016/05/ue4console%E5%91%BD%E4%BB%A4%E8%A1%8C%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4command/)
+- [UE4: How To Write a Commandlet](https://www.oneoddsock.com/blog/2020/07/08/ue4-how-to-write-a-commandlet/)
+- [UE4: Guide Book -- Exec Functions](https://unreal.gg-labs.com/wiki-archives/common-pitfalls/exec-functions)
+- [【UE4】Rider For Unreal体验报告](https://zhuanlan.zhihu.com/p/379911259)
 
