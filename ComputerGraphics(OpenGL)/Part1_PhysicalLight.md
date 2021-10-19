@@ -218,8 +218,8 @@ $$
 
 漫反射的**输入颜色**为 Albedo 贴图，它不收光照的影响，没有阴影为物体本来的颜色
 
-**漫反射不考虑光源方向**
-假设在所有方向观察亮度都是相同的，因此 $f_{lambert}$ 是常数
+1. 不考虑光源方向：假设在所有方向观察亮度都是相同的，因此 $f_{lambert}$ 是常数
+
 $$
 \begin{align}
 \int_{\Omega} f_{lambert} L_{Input} cos\theta d\omega' &= L_{Output}\\
@@ -227,6 +227,16 @@ L_{Input} f_{lambert} \int_{\Omega} cos\theta d\omega' &= L_{Output}\\
 f_{lambert} \int_0^{2\pi} d\phi \int_0^{\pi\over 2} cos\theta d\theta &= 1\\
 f_{lambert} \pi &= 1\\
 f_{lambert} &= {color \over \pi}, \space color[0,1]
+\end{align}
+$$
+
+2. 考虑光源方向（根据入射精确光源计算漫反射分量）
+
+$$
+\begin{align}
+L_o(v) &= \pi f(l_i, v) C_i(n \cdot l_i) \\
+L_{lambert} &= \pi f_{lambert} C_i(n \cdot l_i) \\
+&= C_i(n \cdot l_i)
 \end{align}
 $$
 
@@ -250,14 +260,6 @@ $$
 
 #### 3.2.1 D 光泽度
 
-**正态分布函数** Normal Distribution Function
-用来估算微平面的主要函数，估算在受到表面粗糙度的影响下，取向方向与中间向量一致的微平面的数量
-以下设给定向量 $h$，通过 NDF 函数 Trowbridge-Reitz GGX 计算与 $h$ 方向一致的概率
-$h$：平面法向量 $n$ 和光线方向向量之间的中间向量
-$\alpha$：表面的粗糙度（参数）
-$$
-NDF_{GGXTR}(n,h,\alpha) = {\alpha^2 \over \pi((n\cdot h)^2(\alpha^2-1)+1)^2}
-$$
 **光泽度** Glossy
 
 - 用统计学的方法来概略的估算微平面的粗糙程度，表示半程向量（Blinn-Phong 中）的方向与微平面平均取向方向一致的概率
@@ -277,6 +279,14 @@ $$
 
 
 
+**正态分布函数** Normal Distribution Function
+用来估算微平面的主要函数，估算在受到表面粗糙度的影响下，取向方向与中间向量一致的微平面的数量
+以下设给定向量 $h$，通过 NDF 函数 Trowbridge-Reitz GGX 计算与 $h$ 方向一致的概率
+$h$：平面法向量 $n$ 和光线方向向量之间的中间向量
+$\alpha$：表面的粗糙度（参数）
+$$
+NDF_{GGXTR}(n,h,\alpha) = {\alpha^2 \over \pi((n\cdot h)^2(\alpha^2-1)+1)^2}
+$$
 传统的微平面模型的问题：太过于平滑，不能表现小于一个像素的几何级的细节
 
 ![](./images/microfacet.jpg)
@@ -1042,9 +1052,7 @@ HDR 渲染的真正优点在庞大和复杂的场景中应用复杂光照算法�
 
 
 
-
-
-# 四、离线渲染
+# 六、离线渲染
 
 ## 1. 光线追踪 Ray Tracing
 
